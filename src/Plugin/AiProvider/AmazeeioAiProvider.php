@@ -23,13 +23,4 @@ class AmazeeioAiProvider extends OpenAiProvider {
     return $this->configFactory->get('ai_provider_amazeeio.settings');
   }
 
-  /**
-   * {@inheritdoc}
-   */
-  public function getApiDefinition(): array {
-    // Load the configuration.
-    $definition = Yaml::parseFile($this->moduleHandler->getModule('ai_provider_amazeeio')->getPath() . '/definitions/api_defaults.yml');
-    return $definition;
-  }
-
 }
