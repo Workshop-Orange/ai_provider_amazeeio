@@ -1,0 +1,6 @@
+services:
+  ai_provider_amazeeio.route_subscriber:
+    class: Drupal\ai_provider_amazeeio\Routing\RouteSubscriber
+    tags:
+      - { name: event_subscriber }
+

@@ -1,0 +1,10 @@
+<?php
+
+/**
+ * Implements hook_ai_provider_info_alter().
+ */
+function ai_provider_amazeeio_ai_provider_info_alter(&$providers) {
+  // Remove the providers that this builds upon to simplify UI.
+  unset($providers['openai']);
+  unset($providers['litellm']);
+}

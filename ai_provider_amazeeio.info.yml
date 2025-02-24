@@ -3,3 +3,7 @@ description: 'This enables the use of Amazee.io AI for the AI module.'
 package: AI
 type: module
 core_version_requirement: ^11
+
+dependencies:
+  - ai_provider_litellm:ai_provider_litellm
+  - key:key

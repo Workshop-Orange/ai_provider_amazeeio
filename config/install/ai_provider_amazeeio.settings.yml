@@ -1,0 +1,3 @@
+api_key: ''
+host: 'https://proxy.litellm.ddev.site'
+moderation: TRUE
