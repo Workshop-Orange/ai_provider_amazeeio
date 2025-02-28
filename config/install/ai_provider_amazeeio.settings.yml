@@ -1,3 +1,4 @@
-api_key: ''
+api_key: 'amazeeio_ai'
 host: ''
-moderation: TRUE
+moderation: FALSE
+amazee_host: 'https://backend.main.amazeeai.us2.amazee.io'
