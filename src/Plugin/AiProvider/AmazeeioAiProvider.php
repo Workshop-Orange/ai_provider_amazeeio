@@ -6,7 +6,6 @@ use Drupal\ai_provider_openai\Plugin\AiProvider\OpenAiProvider;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\ai\Attribute\AiProvider;
-use Symfony\Component\Yaml\Yaml;
 
 /**
  * Plugin implementation of the 'Amazee.io AI' provider.
@@ -16,6 +15,7 @@ use Symfony\Component\Yaml\Yaml;
   label: new TranslatableMarkup('Amazee.io AI'),
 )]
 class AmazeeioAiProvider extends OpenAiProvider {
+
   /**
    * {@inheritdoc}
    */

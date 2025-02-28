@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * @file
+ * Hook implementations for the Amazee.io AI provider.
+ */
+
+/**
  * Implements hook_ai_provider_info_alter().
  */
 function ai_provider_amazeeio_ai_provider_info_alter(&$providers) {

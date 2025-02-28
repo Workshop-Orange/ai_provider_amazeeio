@@ -2,11 +2,9 @@
 
 namespace Drupal\ai_provider_amazeeio\Form;
 
-use Drupal\ai_provider_amazeeio\AmazeeioAi\AmazeeioAiClient;
 use Drupal\ai_provider_litellm\Form\LiteLlmAiConfigForm;
 use Drupal\ai_provider_litellm\LiteLLM\LiteLlmAiClient;
 use Drupal\Core\Form\FormStateInterface;
-use GuzzleHttp\Exception\ClientException;
 
 /**
  * Configure Amazee.io AI API access.
