@@ -551,20 +551,9 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
         ->save();
 
       // Set the default models where available.
-      $litellm_client = new LiteLlmAiClient($this->client, $this->keyRepository, $api_key->litellm_api_url, $api_key->litellm_token);
-      $models = array_keys($litellm_client->models());
-      $operation_types = array_merge(
-        array_map(
-          fn (array $operation_type) => $operation_type['id'],
-          $this->aiProviderManager->getOperationTypes(),
-        ),
-        ['chat_with_complex_json', 'chat_with_image_vision'],
-      );
-      foreach ($operation_types as $operation_type) {
-        if (in_array($operation_type, $models)) {
-          $this->aiProviderManager->defaultIfNone($operation_type, 'amazeeio', $operation_type);
-        }
-      }
+      $this->aiProviderManager
+        ->createInstance('amazeeio')
+        ->postSetup();
     }
   }
 
