@@ -88,13 +88,14 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     }
     $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
 
+    $current_key = $this->keyRepository->getKey('amazeeio_ai')?->getKeyValue();
     if (!$auth_token) {
-      $this->loginRegisterForm($form['amazee'], $form_state, $form['#id']);
+      $this->loginRegisterForm($form['amazee'], $form_state, $form['#id'], empty($current_key));
     }
     else {
       $authorized = $this->amazeeClient->authorized();
       if (!$authorized) {
-        $this->loginRegisterForm($form['amazee'], $form_state, $form['#id']);
+        $this->loginRegisterForm($form['amazee'], $form_state, $form['#id'], empty($current_key));
         // Clear the token as it no longer works.
         $this->getTempStore()->delete('access_token');
         $this->amazeeClient->setToken('');
@@ -112,7 +113,6 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
       $form,
       $form_state,
       $config->get('host') ?? '',
-      $config->get('api_key') ?? ''
     );
 
     return $form;
@@ -127,12 +127,15 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
    *   The current form state.
    * @param string $form_id
    *   The Form ID.
+   * @param bool $open
+   *   Whether the details elements should be open.
    */
-  protected function loginRegisterForm(array &$sub_form, FormStateInterface $form_state, string $form_id): void {
+  protected function loginRegisterForm(array &$sub_form, FormStateInterface $form_state, string $form_id, bool $open = FALSE): void {
     // Integrate with the Amazee AI Keys as a Service API.
     $sub_form['login'] = [
       '#type' => 'details',
-      '#title' => $this->t('Login'),
+      '#title' => $this->t('Log in'),
+      '#open' => $open,
       'login_username' => [
         '#type' => 'textfield',
         '#title' => $this->t('Username'),
@@ -143,7 +146,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
       ],
       'login_button' => [
         '#type' => 'submit',
-        '#value' => $this->t('Login'),
+        '#value' => $this->t('Log in'),
         '#validate' => ['::loginValidate'],
         '#submit' => ['::loginSubmit'],
         '#ajax' => [
@@ -157,6 +160,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     $sub_form['register'] = [
       '#type' => 'details',
       '#title' => $this->t('Register'),
+      '#open' => $open,
       'register_username' => [
         '#type' => 'textfield',
         '#title' => $this->t('Username'),
@@ -180,6 +184,24 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
   }
 
   /**
+   * Add Log out subform to the form.
+   *
+   * @param array $sub_form
+   *   An array of form elements to add the subform to.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   */
+  protected function logoutForm(array &$sub_form, FormStateInterface $form_state): void {
+    $sub_form['logout_button'] = [
+      '#type' => 'submit',
+      '#value' => $this->t('Log out'),
+      '#validate' => [],
+      '#submit' => ['::logoutSubmit'],
+      '#attributes' => ['class' => ['button', 'button--danger']],
+    ];
+  }
+
+  /**
    * Add API key usage subform to the form.
    *
    * @param array<string, mixed> $form
@@ -188,7 +210,6 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
    *   The current form state.
    */
   protected function selectKeyForm(array &$form, FormStateInterface $form_state): void {
-    $current_key = $this->config(static::CONFIG_NAME)->get('api_key');
     $key_options = $this->getApiKeys();
     $form['api_key'] = [
       '#type' => 'select',
@@ -234,16 +255,14 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
    *   The current form state.
    * @param string $host
    *   The LiteLLM host domain.
-   * @param string $api_key
-   *   The LiteLLM API Key.
    */
-  protected function keyUsageForm(array &$form, FormStateInterface $form_state, string $host, string $api_key): void {
-    if (empty($host) || empty($api_key) || !$this->keyRepository->getKey('amazeeio_ai')->getKeyValue()) {
+  protected function keyUsageForm(array &$form, FormStateInterface $form_state, string $host): void {
+    if (empty($host) || !$this->keyRepository->getKey('amazeeio_ai')?->getKeyValue()) {
       // Show nothing if we don't have an API key or host yet.
       return;
     }
 
-    $client = new LiteLlmAiClient($this->client, $this->keyRepository, $host, $api_key);
+    $client = new LiteLlmAiClient($this->client, $this->keyRepository, $host, 'amazeeio_ai');
     $keys = $client->keyInfo();
     $key_info = reset($keys);
 
@@ -305,6 +324,9 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     }
     elseif ($authorized) {
       $this->selectKeyForm($form, $form_state);
+    }
+    if ($authorized) {
+      $this->logoutForm($form, $form_state);
     }
   }
 
@@ -384,7 +406,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
   }
 
   /**
-   * Submit handler for Login action.
+   * Submit handler for Log in action.
    *
    * @param array<string, mixed> $form
    *   The form being submitted.
@@ -393,6 +415,20 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
    */
   public function loginSubmit(array &$form, FormStateInterface $form_state): void {
     $form_state->setRebuild();
+  }
+
+  /**
+   * Submit handler for Log out action.
+   *
+   * @param array<string, mixed> $form
+   *   The form being submitted.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state being submitted.
+   */
+  public function logoutSubmit(array &$form, FormStateInterface $form_state): void {
+    $this->amazeeClient->logout();
+    $this->getTempStore()->delete('access_token');
+    $form_state->setRedirect($this->getRouteMatch()->getRouteName(), $this->getRouteMatch()->getParameters()->all());
   }
 
   /**
@@ -528,7 +564,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
     $api_key = $this->amazeeClient->getPrivateApiKey($form_state->getValue('api_key'));
     if ($api_key) {
-      // Set the provider config, using a know key name to ease support
+      // Set the provider config, using a known key name to ease support
       // preconfigured environments.
       $this->config(static::CONFIG_NAME)
         ->set('host', $api_key->litellm_api_url)

@@ -5,11 +5,51 @@
  * Hook implementations for the Amazee.io AI provider.
  */
 
+use Drupal\Core\Session\AccountInterface;
+use Drupal\user\UserInterface;
+use Drupal\Core\TempStore\TempStoreException;
+
 /**
  * Implements hook_ai_provider_info_alter().
  */
-function ai_provider_amazeeio_ai_provider_info_alter(&$providers) {
+function ai_provider_amazeeio_ai_provider_info_alter(&$providers): void {
   // Remove the providers that this builds upon to simplify UI.
   unset($providers['openai']);
   unset($providers['litellm']);
+}
+
+/**
+ * Implements hook_user_logout().
+ */
+function ai_provider_amazeeio_user_logout(AccountInterface $account): void {
+  // Log the user out of Amazee during Drupal logout.
+  _ai_provider_amazeeio_amazee_logout();
+}
+
+/**
+ * Implements hook_user_login().
+ */
+function ai_provider_amazeeio_user_login(UserInterface $account): void {
+  // Log the user out of Amazee during log in in case the last Drupal logout was
+  // due to timeout/inactivity.
+  _ai_provider_amazeeio_amazee_logout();
+}
+
+/**
+ * Helper function to log user out of Amazee.io system.
+ */
+function _ai_provider_amazeeio_amazee_logout(): void {
+  /** @var \Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface $amazee_client */
+  $amazee_client = \Drupal::service('ai_provider_amazeeio.api_client');
+  $amazee_client->logout();
+
+  /** @var \Drupal\Core\TempStore\PrivateTempStoreFactory $temp_store */
+  $temp_store = \Drupal::service('tempstore.private');
+  try {
+    $temp_store->get('amazeeio_ai')->delete('access_token');
+  }
+  catch (TempStoreException $e) {
+    // Log error but do nothing as this shouldn't affect the user.
+    \Drupal::logger('ai_provider_amazeeio')->error('Failed to log out of Amazee.io: @error', ['@error' => $e->getMessage()]);
+  }
 }
