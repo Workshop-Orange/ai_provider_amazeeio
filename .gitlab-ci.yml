@@ -27,3 +27,6 @@ phpstan:
 
 variables:
   _CSPELL_WORDS: 'amazee, litellm'
+  # Workaround until we can get ext-pgsql in the container.
+  COMPOSER_IGNORE_PLATFORM_REQ: 'ext-pgsql'
+

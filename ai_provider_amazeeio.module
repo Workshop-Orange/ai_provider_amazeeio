@@ -5,9 +5,38 @@
  * Hook implementations for the Amazee.io AI provider.
  */
 
+use Drupal\ai_search\Plugin\search_api\backend\SearchApiAiSearchBackend;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\user\UserInterface;
 use Drupal\Core\TempStore\TempStoreException;
+use Drupal\search_api\IndexInterface;
+
+/**
+ * Implements hook_search_api_index_update().
+ *
+ * When the search API index is updated, check the fields are correctly
+ * setup in Postgres.
+ */
+function ai_provider_amazeeio_search_api_index_update(IndexInterface $index): void {
+  $server = $index->getServerInstance();
+  if (!($server->getBackend() instanceof SearchApiAiSearchBackend)) {
+    return;
+  }
+  $backend_config = $server->getBackendConfig();
+  if (!isset($backend_config['database'])) {
+    return;
+  }
+  if ($backend_config['database'] !== 'amazeeio_vector_db') {
+    return;
+  }
+  $ai_vdb_provider_postgres = \Drupal::service('ai.vdb_provider')->createInstance('amazeeio_vector_db');
+  $connection = $ai_vdb_provider_postgres->getConnection($backend_config['database_settings']['database_name']);
+  \Drupal::service('ai_vdb_provider_postgres.client')->updateFields(
+    $index->getFields(),
+    $backend_config['database_settings']['collection'],
+    $connection,
+  );
+}
 
 /**
  * Implements hook_ai_provider_info_alter().

@@ -11,3 +11,18 @@ ai_provider_amazeeio.settings:
     host:
       type: string
       label: 'The host to use for the API requests.'
+    postgres_host:
+      type: string
+      label: 'The host to use for the Postgres database.'
+    postgres_port:
+      type: integer
+      label: 'The port to use for the Postgres database.'
+    postgres_default_database:
+      type: string
+      label: 'The database to use for the Postgres database.'
+    postgres_username:
+      type: string
+      label: 'The user to use for the Postgres database.'
+    postgres_password:
+      type: string
+      label: 'The password to use for the Postgres database, loaded via Key module.'

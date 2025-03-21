@@ -1,0 +1,93 @@
+<?php
+
+namespace Drupal\ai_provider_amazeeio\Plugin\VdbProvider;
+
+use Drupal\Core\Config\ImmutableConfig;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\ai\Attribute\AiVdbProvider;
+use Drupal\ai_vdb_provider_postgres\Exception\DatabaseNotConfiguredException;
+use Drupal\ai_vdb_provider_postgres\Plugin\VdbProvider\PostgresProvider;
+use PgSql\Connection as PgSql;
+
+/**
+ * Plugin implementation of the 'Amazee.io Vector Database' provider.
+ */
+#[AiVdbProvider(
+  id: 'amazeeio_vector_db',
+  label: new TranslatableMarkup('Amazee.io Vector Database'),
+)]
+class AmazeeioVdbProvider extends PostgresProvider {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getConfig(): ImmutableConfig {
+    return $this->configFactory->get(name: 'ai_provider_amazeeio.settings');
+  }
+
+  /**
+   * Get the Postgres database connection.
+   *
+   * This connection is used interface with the Postgres client.
+   *
+   * @return \PgSql\Connection|false
+   *   A connection to the Postgres instance.
+   *
+   * @throws \Drupal\ai_vdb_provider_postgres\Exception\DatabaseConnectionException
+   * @throws \Drupal\ai_vdb_provider_postgres\Exception\DatabaseNotConfiguredException
+   */
+  public function getConnection(?string $database = NULL): PgSql|false {
+    $config = $this->getConnectionData();
+    return $this->getClient()->getConnection(
+      host: $config['host'],
+      port: $config['port'],
+      username: $config['username'],
+      password: $config['password'],
+      default_database: $config['default_database'],
+      database: $database
+    );
+  }
+
+  /**
+   * Get connection data.
+   *
+   * @return array
+   *   The connection data.
+   *
+   * @throws \Drupal\ai_vdb_provider_postgres\Exception\DatabaseNotConfiguredException
+   */
+  public function getConnectionData() {
+    $config = $this->getConfig();
+    $output['host'] = $this->configuration['host'] ?? $config->get(key: 'postgres_host');
+    // Fail if host is not set.
+    if (!$output['host']) {
+      throw new DatabaseNotConfiguredException(message: 'Postgres host is not configured');
+    }
+    $output['username'] = $this->configuration['username'] ?? $config->get(key: 'postgres_username');
+    if (!$output['username']) {
+      throw new DatabaseNotConfiguredException(message: 'Postgres username is not configured');
+    }
+    $token = $config->get(key: 'postgres_password');
+    $output['password'] = '';
+    if ($token) {
+      $output['password'] = $this->keyRepository->getKey(key_id: $token)->getKeyValue();
+    }
+    if (!empty($this->configuration['password'])) {
+      $output['password'] = $this->configuration['password'];
+    }
+    if (!$output['password']) {
+      throw new DatabaseNotConfiguredException(message: 'Postgres password is not configured');
+    }
+
+    $output['port'] = $this->configuration['port'] ?? $config->get(key: 'postgres_port');
+    if (!$output['port']) {
+      $output['port'] = '5432';
+    }
+    $output['default_database'] = $this->configuration['default_database'] ?? $config->get(key: 'postgres_default_database');
+    if (!$output['default_database']) {
+      throw new DatabaseNotConfiguredException(message: 'Postgres default_database is not configured');
+    }
+    return $output;
+  }
+
+}

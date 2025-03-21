@@ -1,0 +1,16 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the Amazee.io AI Provider module.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Install AI Search and the postgres provider..
+ */
+function ai_provider_amazeeio_update_10001(): void {
+  \Drupal::service('module_installer')
+    ->install(['ai_search', 'ai_vdb_provider_postgres']);
+}

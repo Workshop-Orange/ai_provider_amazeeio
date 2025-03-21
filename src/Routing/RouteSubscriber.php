@@ -20,6 +20,9 @@ class RouteSubscriber extends RouteSubscriberBase {
     if ($route = $collection->get('ai_provider_litellm.settings_form')) {
       $route->setRequirement('_access', 'FALSE');
     }
+    if ($route = $collection->get('ai_vdb_provider_postgres.settings_form')) {
+      $route->setRequirement('_access', 'FALSE');
+    }
   }
 
 }

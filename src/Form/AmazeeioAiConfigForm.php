@@ -3,12 +3,14 @@
 namespace Drupal\ai_provider_amazeeio\Form;
 
 use Drupal\ai\AiProviderPluginManager;
+use Drupal\ai\AiVdbProviderPluginManager;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface;
 use Drupal\ai_provider_litellm\Form\LiteLlmAiConfigForm;
 use Drupal\ai_provider_litellm\LiteLLM\LiteLlmAiClient;
 use Drupal\ai_provider_openai\OpenAiHelper;
 use Drupal\Component\Render\FormattableMarkup;
 use Drupal\Component\Utility\Html;
+use Drupal\Core\Config\Config;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\TempStore\PrivateTempStore;
@@ -29,6 +31,21 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
   const CONFIG_NAME = 'ai_provider_amazeeio.settings';
 
   /**
+   * The known key name for the Amazee.io API key.
+   */
+  const API_KEY_NAME = 'amazeeio_ai';
+
+  /**
+   * The known key name for the Amazee.io database password.
+   */
+  const VDB_PASSWORD_NAME = 'amazeeio_ai_database';
+
+  /**
+   * The default Postgres port.
+   */
+  const POSTGRES_PORT_DEFAULT = '5432';
+
+  /**
    * Constructs a new LiteLlmAiConfigForm object.
    */
   public function __construct(
@@ -39,6 +56,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     protected ClientInterface $amazeeClient,
     protected PrivateTempStoreFactory $tempStoreFactory,
     protected EntityTypeManagerInterface $entityTypeManager,
+    protected AiVdbProviderPluginManager $vdbProviderPluginManager,
   ) {
     parent::__construct($aiProviderManager, $keyRepository, $openAiHelper, $client);
   }
@@ -55,6 +73,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
       $container->get('ai_provider_amazeeio.api_client'),
       $container->get('tempstore.private'),
       $container->get('entity_type.manager'),
+      $container->get('ai.vdb_provider'),
     );
   }
 
@@ -112,7 +131,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     $this->keyUsageForm(
       $form,
       $form_state,
-      $config->get('host') ?? '',
+      $config,
     );
 
     return $form;
@@ -216,7 +235,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
       '#title' => $this->t('API key'),
       '#description' => $this->t('Select an existing API key to use.'),
       '#options' => $key_options,
-      '#default_value' => $this->keyRepository->getKey('amazeeio_ai')?->getKeyValue(),
+      '#default_value' => $this->keyRepository->getKey(static::API_KEY_NAME)?->getKeyValue(),
       '#required' => TRUE,
       '#access' => count($key_options) > 1,
     ];
@@ -253,11 +272,12 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
    *   The form to add to.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The current form state.
-   * @param string $host
-   *   The LiteLLM host domain.
+   * @param \Drupal\Core\Config\Config $config
+   *   The Amazee.io AI config.
    */
-  protected function keyUsageForm(array &$form, FormStateInterface $form_state, string $host): void {
-    if (empty($host) || !$this->keyRepository->getKey('amazeeio_ai')?->getKeyValue()) {
+  protected function keyUsageForm(array &$form, FormStateInterface $form_state, Config $config): void {
+    $host = $config->get('host');
+    if (empty($host) || !$this->keyRepository->getKey(static::API_KEY_NAME)->getKeyValue()) {
       // Show nothing if we don't have an API key or host yet.
       return;
     }
@@ -298,6 +318,13 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
       $this->t('Blocked'),
       $key_info->info->blocked ? $this->t('Yes') : $this->t('No'),
     ];
+
+    if ($database = $config->get('postgres_default_database')) {
+      $form['usage']['#rows'][] = [
+        $this->t('VectorDB Database'),
+        $database,
+      ];
+    }
 
     foreach ($form['usage']['#rows'] as &$row) {
       $row[0] = [
@@ -568,14 +595,19 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
       // preconfigured environments.
       $this->config(static::CONFIG_NAME)
         ->set('host', $api_key->litellm_api_url)
-        ->set('api_key', 'amazeeio_ai')
+        ->set('postgres_host', $api_key->database_host)
+        ->set('postgres_port', $api_key->database_port ?? static::POSTGRES_PORT_DEFAULT)
+        ->set('postgres_default_database', $api_key->database_name)
+        ->set('postgres_username', $api_key->database_username)
+        ->set('postgres_password', static::VDB_PASSWORD_NAME)
+        ->set('api_key', static::API_KEY_NAME)
         ->save();
 
       // Load or create the Amazee.io key.
       $key_storage = $this->entityTypeManager->getStorage('key');
-      $key = $key_storage->load('amazeeio_ai') ??
+      $key = $key_storage->load(static::API_KEY_NAME) ??
         $key_storage->create([
-          'id' => 'amazeeio_ai',
+          'id' => static::API_KEY_NAME,
           'label' => 'Amazee.io AI API Key',
           'description' => 'Automatically created by the Amazee.io AI provider.',
         ]);
@@ -583,6 +615,20 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
       $key
         ->set('key_provider', 'config')
         ->set('key_provider_settings', ['key_value' => $api_key->litellm_token])
+        ->set('key_input', 'text_field')
+        ->save();
+
+      // Load or create the Amazee.io Postgres key.
+      $database_key = $key_storage->load(static::VDB_PASSWORD_NAME) ??
+        $key_storage->create([
+          'id' => static::VDB_PASSWORD_NAME,
+          'label' => 'Amazee.io AI Database Key',
+          'description' => 'Automatically created by the Amazee.io AI provider.',
+        ]);
+      // Update the key config.
+      $database_key
+        ->set('key_provider', 'config')
+        ->set('key_provider_settings', ['key_value' => $api_key->database_password])
         ->set('key_input', 'text_field')
         ->save();
 
