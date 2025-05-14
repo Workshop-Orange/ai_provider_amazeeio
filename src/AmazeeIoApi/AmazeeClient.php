@@ -5,6 +5,7 @@ namespace Drupal\ai_provider_amazeeio\AmazeeIoApi;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Utils;
 use Psr\Http\Message\ResponseInterface;
 
 /**
@@ -93,6 +94,36 @@ class AmazeeClient implements ClientInterface {
   }
 
   /**
+   * Request a validation code for a given email address.
+   */
+  public function requestCode(string $email): void {
+    try {
+      $this->makeRequest('POST', '/auth/validate-email', ['email' => $email]);
+    }
+    catch (ClientException | \Exception $e) {
+      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to validate email: @error', ['@error' => $e->getMessage()]);
+    }
+  }
+
+  /**
+   * Validate an email validation code.
+   *
+   * @return ?string
+   *   The access token for this account or null if the code was invalid.
+   */
+  public function validateCode(string $email, string $code): ?string {
+    try {
+      $result = $this->makeRequest('POST', '/auth/sign-in', ['username' => $email, 'verification_code' => $code]);
+      $data = Utils::jsonDecode($result->getBody()->getContents(), TRUE);
+      return $data['access_token'];
+    }
+    catch (ClientException | \Exception $e) {
+      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to validate email: @error', ['@error' => $e->getMessage()]);
+    }
+    return NULL;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function register(string $email, string $password): string {
@@ -139,7 +170,9 @@ class AmazeeClient implements ClientInterface {
     $region_response = json_decode($response->getBody()->getContents());
     if ($region_response) {
       foreach ($region_response as $region) {
-        $regions[$region->id] = $region->name;
+        if ($region->is_active) {
+          $regions[$region->id] = $region->name;
+        }
       }
     }
     return $regions;

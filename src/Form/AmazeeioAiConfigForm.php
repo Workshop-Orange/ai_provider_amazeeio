@@ -2,15 +2,13 @@
 
 namespace Drupal\ai_provider_amazeeio\Form;
 
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\ai\AiProviderPluginManager;
 use Drupal\ai\AiVdbProviderPluginManager;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface;
 use Drupal\ai_provider_litellm\Form\LiteLlmAiConfigForm;
 use Drupal\ai_provider_litellm\LiteLLM\LiteLlmAiClient;
 use Drupal\ai_provider_openai\OpenAiHelper;
-use Drupal\Component\Render\FormattableMarkup;
-use Drupal\Component\Utility\Html;
-use Drupal\Core\Config\Config;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\TempStore\PrivateTempStore;
@@ -46,6 +44,31 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
   const POSTGRES_PORT_DEFAULT = '5432';
 
   /**
+   * Not connected to amazee.ai.
+   */
+  const STATE_DISCONNECTED = 'disconnected';
+
+  /**
+   * Email address has been entered, waiting for  verification code.
+   */
+  const STATE_VERIFICATION = 'validation';
+
+  /**
+   * Email verification successful, region selection.
+   */
+  const STATE_VERIFIED = 'validated';
+
+  /**
+   * Region has been selected, keys are generated, everything is set up.
+   */
+  const STATE_CONNECTED = 'connected';
+
+  /**
+   * Show a confirmation step before disconnecting.
+   */
+  const STATE_CONFIRM_DISCONNECT = 'confirm_disconnect';
+
+  /**
    * Constructs a new LiteLlmAiConfigForm object.
    */
   public function __construct(
@@ -57,8 +80,12 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     protected PrivateTempStoreFactory $tempStoreFactory,
     protected EntityTypeManagerInterface $entityTypeManager,
     protected AiVdbProviderPluginManager $vdbProviderPluginManager,
+    protected ModuleHandlerInterface $moduleHandler,
   ) {
     parent::__construct($aiProviderManager, $keyRepository, $openAiHelper, $client);
+    $config = $this->config(static::CONFIG_NAME);
+    $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
+    $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
   }
 
   /**
@@ -74,6 +101,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
       $container->get('tempstore.private'),
       $container->get('entity_type.manager'),
       $container->get('ai.vdb_provider'),
+      $container->get('module_handler')
     );
   }
 
@@ -85,557 +113,349 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
   }
 
   /**
+   * Determine the current form state.
+   *
+   * Based on the current `$form_state` as well as the authorization
+   * status.
+   */
+  public function currentState(FormStateInterface $form_state) : string {
+    return $form_state->get('state')
+      ? $form_state->get('state')
+      : ($this->amazeeClient->authorized()
+        ? static::STATE_CONNECTED
+        : static::STATE_DISCONNECTED
+      );
+  }
+
+  /**
+   * Determine if the module is in "test mode".
+   */
+  protected function testMode() : bool {
+    return $this->moduleHandler->moduleExists('ai_provider_amazeeio_test');
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $config = $this->config(static::CONFIG_NAME);
-
-    $form['#id'] = Html::getUniqueId('amazee-config-form');
-    // Add the custom Amazee section.
-    $form['amazee'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Amazee.io login'),
-      '#attributes' => [
-        // ID used for AJAX callback wrapper.
-        'id' => 'amazee-details',
-      ],
-      '#open' => TRUE,
-    ];
+    $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
 
     if ($auth_token = $this->getTempStore()->get('access_token')) {
       $this->amazeeClient->setToken($auth_token);
     }
-    $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
 
-    $current_key = $this->keyRepository->getKey('amazeeio_ai')?->getKeyValue();
-    if (!$auth_token) {
-      $this->loginRegisterForm($form['amazee'], $form_state, $form['#id'], empty($current_key));
-    }
-    else {
-      $authorized = $this->amazeeClient->authorized();
-      if (!$authorized) {
-        $this->loginRegisterForm($form['amazee'], $form_state, $form['#id'], empty($current_key));
-        // Clear the token as it no longer works.
-        $this->getTempStore()->delete('access_token');
-        $this->amazeeClient->setToken('');
-      }
-      else {
-        // We don't need to see the Amazee.io login/register if authorized.
-        $form['amazee']['#access'] = FALSE;
-      }
-    }
-
-    $this->apiKeysForm($form, $form_state, $authorized ?? FALSE);
-
-    // Show key usage details.
-    $this->keyUsageForm(
-      $form,
-      $form_state,
-      $config,
-    );
-
-    return $form;
-  }
-
-  /**
-   * Add Login/Register subform to the form.
-   *
-   * @param array $sub_form
-   *   An array of form elements to add the subform to.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   * @param string $form_id
-   *   The Form ID.
-   * @param bool $open
-   *   Whether the details elements should be open.
-   */
-  protected function loginRegisterForm(array &$sub_form, FormStateInterface $form_state, string $form_id, bool $open = FALSE): void {
-    // Integrate with the Amazee AI Keys as a Service API.
-    $sub_form['login'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Log in'),
-      '#open' => $open,
-      'login_username' => [
-        '#type' => 'textfield',
-        '#title' => $this->t('Username'),
+    $buttonAjax = [
+      'callback' => '::ajaxUpdate',
+      'event' => 'click',
+      'wrapper' => 'amazee-ai-config-form',
+      'progress' => [
+        'type' => 'throbber',
       ],
-      'login_password' => [
-        '#type' => 'password',
-        '#title' => $this->t('Password'),
-      ],
-      'login_button' => [
+    ];
+
+    $state = $this->currentState($form_state);
+    $form['image'] = [
+      "#markup" => '<p><img src="http://assets.amazee.ai/logo.png" alt="amazee.ai" width="400"/>',
+    ];
+    $ajax = [
+      '#prefix' => '<div id="amazee-ai-config-form">',
+      '#suffix' => '</div>',
+    ];
+    if ($state === static::STATE_DISCONNECTED) {
+      $ajax['markup'] = [
+        '#markup' => '<p><em>' . $this->t('Enter your email address to receive a verification code to connect to <strong>amazee.ai</strong>.') . '</em></p>',
+      ];
+      $ajax['email'] = [
+        // When in 'test mode' we use a simple text field, so the BrowserTest
+        // is actually able to enter an invalid email address.
+        '#type' => $this->testMode() ? 'textfield' : 'email',
+        '#title' => $this->t('Email'),
+        '#description' => $this->t('By entering your email address, you agree to amazee.io\'s <a href="https://www.amazee.ai/terms-of-service">Terms of Service.</a>'),
+      ];
+      $ajax['submit_email'] = [
         '#type' => 'submit',
-        '#value' => $this->t('Log in'),
-        '#validate' => ['::loginValidate'],
-        '#submit' => ['::loginSubmit'],
-        '#ajax' => [
-          'callback' => '::wholeFormAjax',
-          'wrapper' => $form_id,
-        ],
+        '#value' => $this->t('Sign in'),
+        '#ajax' => $buttonAjax,
         '#attributes' => ['class' => ['button', 'button--primary']],
-      ],
-    ];
+      ];
+    }
 
-    $sub_form['register'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Register'),
-      '#open' => $open,
-      'register_username' => [
+    if ($state === static::STATE_VERIFICATION) {
+      $ajax['markup'] = [
+        '#markup' => '<p><em>' . $this->t('Enter the verification code that you should have received via email.') . '</em></p>',
+      ];
+      $ajax['code'] = [
         '#type' => 'textfield',
-        '#title' => $this->t('Username'),
-      ],
-      'register_password' => [
-        '#type' => 'password',
-        '#title' => $this->t('Password'),
-      ],
-      'register_button' => [
-        '#type' => 'button',
-        '#value' => $this->t('Register'),
-        '#validate' => ['::registerValidate'],
-        '#submit' => ['::registerSubmit'],
-        '#ajax' => [
-          'callback' => '::wholeFormAjax',
-          'wrapper' => $form_id,
-        ],
+        '#title' => $this->t('Code'),
+      ];
+      $ajax['submit_code'] = [
+        '#type' => 'submit',
+        '#value' => $this->t('Validate'),
+        '#ajax' => $buttonAjax,
         '#attributes' => ['class' => ['button', 'button--primary']],
-      ],
-    ];
-  }
-
-  /**
-   * Add Log out subform to the form.
-   *
-   * @param array $sub_form
-   *   An array of form elements to add the subform to.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   */
-  protected function logoutForm(array &$sub_form, FormStateInterface $form_state): void {
-    $sub_form['logout_button'] = [
-      '#type' => 'submit',
-      '#value' => $this->t('Log out'),
-      '#validate' => [],
-      '#submit' => ['::logoutSubmit'],
-      '#attributes' => ['class' => ['button', 'button--danger']],
-    ];
-  }
-
-  /**
-   * Add API key usage subform to the form.
-   *
-   * @param array<string, mixed> $form
-   *   An array of form elements to add the subform to.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   */
-  protected function selectKeyForm(array &$form, FormStateInterface $form_state): void {
-    $key_options = $this->getApiKeys();
-    $form['api_key'] = [
-      '#type' => 'select',
-      '#title' => $this->t('API key'),
-      '#description' => $this->t('Select an existing API key to use.'),
-      '#options' => $key_options,
-      '#default_value' => $this->keyRepository->getKey(static::API_KEY_NAME)?->getKeyValue(),
-      '#required' => TRUE,
-      '#access' => count($key_options) > 1,
-    ];
-
-    $form['api_key_none'] = [
-      '#markup' => $this->t('<p>You currently do not have any API keys.</p>'),
-      '#access' => count($key_options) === 1,
-    ];
-
-    $form['show_generate'] = [
-      '#type' => 'submit',
-      '#value' => $this->t('Generate new key'),
-      '#validate' => ['::showGenerateValidate'],
-      '#submit' => ['::showGenerateSubmit'],
-      '#limit_validation_errors' => [],
-      '#ajax' => [
-        'callback' => '::wholeFormAjax',
-        'wrapper' => $form['#id'],
-      ],
-    ];
-
-    $form['submit'] = [
-      '#type' => 'submit',
-      '#value' => $this->t('Save configuration'),
-      '#attributes' => ['class' => ['button', 'button--primary']],
-      '#access' => count($key_options) !== 1,
-    ];
-  }
-
-  /**
-   * Add key and usage info for the current key to a form.
-   *
-   * @param array $form
-   *   The form to add to.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   * @param \Drupal\Core\Config\Config $config
-   *   The Amazee.io AI config.
-   */
-  protected function keyUsageForm(array &$form, FormStateInterface $form_state, Config $config): void {
-    $host = $config->get('host');
-    if (empty($host) || !$this->keyRepository->getKey(static::API_KEY_NAME)->getKeyValue()) {
-      // Show nothing if we don't have an API key or host yet.
-      return;
-    }
-
-    $client = new LiteLlmAiClient($this->client, $this->keyRepository, $host, 'amazeeio_ai');
-    $keys = $client->keyInfo();
-    $key_info = reset($keys);
-
-    $form['usage'] = [
-      '#theme' => 'table',
-      '#rows' => [],
-      '#weight' => 20,
-    ];
-
-    if ($key_info->info->key_alias) {
-      $form['usage']['#rows'][] = [
-        $this->t('Name'),
-        $key_info->info->key_alias,
       ];
     }
 
-    $form['usage']['#rows'][] = [
-      $this->t('Key'),
-      $key_info->info->key_name,
-    ];
-
-    $form['usage']['#rows'][] = [
-      $this->t('Spend ($)'),
-      number_format($key_info->info->spend, 5),
-    ];
-
-    $form['usage']['#rows'][] = [
-      $this->t('Max budget ($)'),
-      $key_info->info->max_budget === NULL ? $this->t('N/A') : number_format($key_info->info->max_budget, 2),
-    ];
-
-    $form['usage']['#rows'][] = [
-      $this->t('Blocked'),
-      $key_info->info->blocked ? $this->t('Yes') : $this->t('No'),
-    ];
-
-    if ($database = $config->get('postgres_default_database')) {
-      $form['usage']['#rows'][] = [
-        $this->t('VectorDB Database'),
-        $database,
+    if ($state === static::STATE_VERIFIED) {
+      try {
+        $regions = $this->amazeeClient->getRegions();
+      }
+      catch (ClientException $e) {
+        $this->messenger->addError($this->t('An error occurred while retrieving the available regions. Please consult the Drupal error log.'));
+      }
+      $ajax['markup'] = [
+        '#markup' => '<p><em>' . $this->t('Select a region to host AI features in.') . '</em></p>',
+      ];
+      $ajax['region'] = [
+        '#type' => 'select',
+        '#title' => $this->t('Region'),
+        '#options' => $regions ?? [],
+        '#title_display' => 'before',
+        '#access' => !empty($regions),
+      ];
+      $ajax['submit_region'] = [
+        '#type' => 'submit',
+        '#value' => $this->t('Connect'),
+        '#access' => !empty($regions),
+        '#attributes' => ['class' => ['button', 'button--primary']],
       ];
     }
 
-    foreach ($form['usage']['#rows'] as &$row) {
-      $row[0] = [
-        'data' => ['#markup' => $row[0]],
-        'header' => TRUE,
+    if ($state === static::STATE_CONNECTED) {
+      $ajax['submit_disconnect'] = [
+        '#type' => 'submit',
+        '#value' => $this->t('Disconnect'),
+        '#attributes' => ['class' => ['button', 'button--danger']],
+      ];
+
+      $host = $config->get('host');
+      if (!(empty($host) || !$this->keyRepository->getKey(static::API_KEY_NAME)->getKeyValue())) {
+        $client = new LiteLlmAiClient($this->client, $this->keyRepository, $host, 'amazeeio_ai');
+        $keys = $client->keyInfo();
+        $key_info = reset($keys);
+
+        $ajax['usage'] = [
+          '#theme' => 'table',
+          '#rows' => [],
+          '#weight' => 20,
+        ];
+
+        if ($key_info->info->key_alias) {
+          $ajax['usage']['#rows'][] = [
+            $this->t('Name'),
+            $key_info->info->key_alias,
+          ];
+        }
+
+        if ($database = $config->get('postgres_default_database')) {
+          $ajax['usage']['#rows'][] = [
+            $this->t('VectorDB Database'),
+            $database,
+          ];
+        }
+
+        foreach ($ajax['usage']['#rows'] as &$row) {
+          $row[0] = [
+            'data' => ['#markup' => $row[0]],
+            'header' => TRUE,
+          ];
+        }
+      }
+    }
+    if ($state === static::STATE_CONFIRM_DISCONNECT) {
+      $ajax['markup'] = [
+        '#markup' => '<p><em>' . $this->t('Do you really want to disconnect from <strong>amazee.ai</string>?') . '</em></p>',
+      ];
+      $ajax['submit_confirm_disconnect'] = [
+        '#type' => 'submit',
+        '#value' => $this->t('Disconnect'),
+        '#attributes' => ['class' => ['button', 'button--danger']],
+      ];
+      $ajax['cancel'] = [
+        '#type' => 'submit',
+        '#value' => $this->t('No! Go back!'),
+        '#ajax' => $buttonAjax,
+        '#attributes' => ['class' => ['button', 'button--secondary']],
       ];
     }
-  }
+    $form['ajax'] = $ajax;
 
-  /**
-   * Add API keys section of the form (selecting existing & generating new).
-   *
-   * @param array $form
-   *   The current form.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   * @param bool $authorized
-   *   Whether the user is currently authorized with the Amazee API.
-   */
-  protected function apiKeysForm(array &$form, FormStateInterface $form_state, bool $authorized): void {
-    $generate_new = $form_state->get('amazee_show_generate') ?? FALSE;
-    if ($generate_new) {
-      $this->generateApiKeyForm($form, $form_state);
-    }
-    elseif ($authorized) {
-      $this->selectKeyForm($form, $form_state);
-    }
-    if ($authorized) {
-      $this->logoutForm($form, $form_state);
-    }
-  }
-
-  /**
-   * Add generate API key subform to the form.
-   *
-   * @param array $form
-   *   An array of form elements to add the subform to.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   */
-  protected function generateApiKeyForm(array &$form, FormStateInterface $form_state): void {
-    $form['key_name'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Name'),
-      '#description' => $this->t('A name for the key to help identify it.'),
-    ];
-
-    try {
-      $regions = $this->amazeeClient->getRegions();
-    }
-    catch (ClientException $e) {
-      // Do nothing as form will handle empty regions array.
-    }
-    $form['region'] = [
-      '#type' => 'select',
-      '#title' => $this->t('Region'),
-      '#options' => $regions ?? [],
-      '#access' => !empty($regions),
-    ];
-
-    $form['generate_key'] = [
-      '#type' => 'submit',
-      '#value' => $this->t('Generate API key'),
-      '#validate' => ['::generateKeyValidate'],
-      '#submit' => ['::generateKeySubmit'],
-      '#ajax' => [
-        'callback' => '::wholeFormAjax',
-        'wrapper' => $form['#id'],
-      ],
-    ];
-  }
-
-  /**
-   * AJAX handler for Amazee section of the form.
-   *
-   * @param array<string, mixed> $form
-   *   The form being submitted.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state being submitted.
-   *
-   * @return array<string, mixed>
-   *   The Amazee-specific section of the form.
-   */
-  public function amazeeAjax(array $form, FormStateInterface $form_state): array {
-    return $form['amazee'];
-  }
-
-  /**
-   * Validation handler for Login action.
-   *
-   * @param array<string, mixed> $form
-   *   The form being submitted.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state being submitted.
-   */
-  public function loginValidate(array &$form, FormStateInterface $form_state): void {
-    $config = $this->config(static::CONFIG_NAME);
-    $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
-    $access_token = $this->amazeeClient->login($form_state->getValue('login_username'), $form_state->getValue('login_password'));
-    if (empty($access_token)) {
-      $form_state->setError($form['amazee']['login'], $this->t('Could not log in to Amazee.io. Please check your details.'));
-      return;
-    }
-
-    $this->getTempStore()->set('access_token', $access_token);
-  }
-
-  /**
-   * Submit handler for Log in action.
-   *
-   * @param array<string, mixed> $form
-   *   The form being submitted.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state being submitted.
-   */
-  public function loginSubmit(array &$form, FormStateInterface $form_state): void {
-    $form_state->setRebuild();
-  }
-
-  /**
-   * Submit handler for Log out action.
-   *
-   * @param array<string, mixed> $form
-   *   The form being submitted.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state being submitted.
-   */
-  public function logoutSubmit(array &$form, FormStateInterface $form_state): void {
-    $this->amazeeClient->logout();
-    $this->getTempStore()->delete('access_token');
-    $form_state->setRedirect($this->getRouteMatch()->getRouteName(), $this->getRouteMatch()->getParameters()->all());
-  }
-
-  /**
-   * Validation handler for Register action.
-   *
-   * @param array<string, mixed> $form
-   *   The form being submitted.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state being submitted.
-   */
-  public function registerValidate(array &$form, FormStateInterface $form_state): void {
-    $access_token = $this->amazeeClient->register($form_state->getValue('register_username'), $form_state->getValue('register_password'));
-    if (empty($access_token)) {
-      $form_state->setError($form['amazee']['register'], $this->t('Could not register with Amazee.io.'));
-      return;
-    }
-
-    $this->getTempStore()->set('access_token', $access_token);
-  }
-
-  /**
-   * Submit handler for Register action.
-   *
-   * @param array<string, mixed> $form
-   *   The form being submitted.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state being submitted.
-   */
-  public function registerSubmit(array &$form, FormStateInterface $form_state): void {
-    $form_state->setRebuild();
-  }
-
-  /**
-   * Validation handler for show generate key form.
-   *
-   * @param array<string, mixed> $form
-   *   The current form.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   */
-  public function showGenerateValidate(array &$form, FormStateInterface $form_state): void {
-    // Intentionally left blank.
-  }
-
-  /**
-   * Submit handler for showing the generate key form.
-   *
-   * @param array<string, mixed> $form
-   *   The current form.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   */
-  public function showGenerateSubmit(array &$form, FormStateInterface $form_state): void {
-    $form_state->setRebuild();
-    $form_state->set('amazee_show_generate', TRUE);
-  }
-
-  /**
-   * AJAX callback to replace the whole form.
-   *
-   * @param array<string, mixed> $form
-   *   The current form.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   *
-   * @return array<string, mixed>
-   *   The whole form.
-   */
-  public function wholeFormAjax(array $form, FormStateInterface $form_state): array {
     return $form;
   }
 
   /**
-   * Validation handler for Generate Key action.
-   *
-   * @param array<string, mixed> $form
-   *   The form being submitted.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state being submitted.
+   * Ajax callback to dynamically update the form.
    */
-  public function generateKeyValidate(array &$form, FormStateInterface $form_state): void {
-    $region = $form_state->getValue('region');
-    if (empty($region)) {
-      $form_state->setError($form['amazee']['region'], $this->t('Unable to fetch list of regions from Amazee.io.'));
-      return;
-    }
-
-    $key_name = $form_state->getValue('key_name');
-    $access_token = $this->getTempStore()->get('access_token');
-    if (empty($access_token)) {
-      $form_state->setError($form['amazee'], $this->t('You have been logged out. Please log in and try again.'));
-      return;
-    }
-    $config = $this->config(static::CONFIG_NAME);
-
-    $this->amazeeClient->setToken($access_token);
-    $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
-
-    $private_key = $this->amazeeClient->createPrivateAiKey($region, $key_name);
-    // If successful remove the generate form.
-    if ($private_key['litellm_token'] && $private_key['litellm_api_url']) {
-      $form_state->set('amazee_show_generate', FALSE);
-    }
-    $form_state->setRebuild();
+  public static function ajaxUpdate(array &$form, FormStateInterface $form_state) {
+    return $form['ajax'];
   }
 
   /**
-   * Submit handler for Generate Key action.
-   *
-   * @param array<string, mixed> $form
-   *   The form being submitted.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state being submitted.
-   */
-  public function generateKeySubmit(array &$form, FormStateInterface $form_state): void {
-    $form_state->setRebuild();
-  }
-
-  /**
-   * {@inheritdoc}
+   * Signup form validation.
    */
   public function validateForm(array &$form, FormStateInterface $form_state): void {
-    // Override parent with intentionally left blank as the flow for this form
-    // validates API key selection elsewhere.
+    $state = $this->currentState($form_state);
+
+    if ($state === static::STATE_DISCONNECTED) {
+      $email = $form_state->getValue('email');
+      if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $form_state->set('email', $email);
+        $this->amazeeClient->requestCode($email);
+        $form_state->set('state', static::STATE_VERIFICATION);
+      }
+      else {
+        $form_state->setErrorByName('email', $this->t('Invalid email address.'));
+      }
+    }
+    if ($state === static::STATE_VERIFICATION) {
+      $email = $form_state->get('email');
+      $code = $form_state->getValue('code');
+      $token = $this->amazeeClient->validateCode($email, $code);
+      if ($token) {
+        $this->getTempStore()->set('access_token', $token);
+        $form_state->set('state', static::STATE_VERIFIED);
+      }
+      else {
+        $form_state->setErrorByName('code', $this->t('The provided code is incorrect or has expired.'));
+      }
+    }
+    if ($state === static::STATE_VERIFIED) {
+      $region = $form_state->getValue('region');
+      $private_key = $this->amazeeClient->createPrivateAiKey(
+        $region,
+        static::generatePrivateKeyName()
+      );
+      if (!$private_key) {
+        $form_state->setErrorByName('region', $this->t('An error occurred while generating the private key. Please consult the Drupal error log.'));
+      }
+      else {
+        // Return now to not rebuild the form but submit it.
+        return;
+      }
+    }
+    if ($state === static::STATE_CONNECTED) {
+      $element = $form_state->getTriggeringElement();
+      if ($element['#id'] === 'edit-submit-disconnect') {
+        $form_state->set('state', static::STATE_CONFIRM_DISCONNECT);
+      }
+    }
+    if ($state === static::STATE_CONFIRM_DISCONNECT) {
+      $element = $form_state->getTriggeringElement();
+      if ($element['#id'] === 'edit-submit-confirm-disconnect') {
+        $form_state->set('state', static::STATE_CONFIRM_DISCONNECT);
+        // Return now to not rebuild the form but submit it.
+        return;
+      }
+      else {
+        $form_state->set('state', static::STATE_CONNECTED);
+      }
+    }
+    $form_state->setRebuild();
+  }
+
+  /**
+   * Generate a key name for this installation.
+   *
+   * Assumes that each Drupal installation has a single API key.
+   */
+  public static function generatePrivateKeyName(): string {
+    return \Drupal::request()->getHost();
   }
 
   /**
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
-    $config = $this->config(static::CONFIG_NAME);
-    $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
-    $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
-    $api_key = $this->amazeeClient->getPrivateApiKey($form_state->getValue('api_key'));
-    if ($api_key) {
-      // Set the provider config, using a known key name to ease support
-      // preconfigured environments.
+    if ($form_state->get('state') === static::STATE_VERIFIED) {
+      $config = $this->config(static::CONFIG_NAME);
+      $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
+      $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
+      $key_name = static::generatePrivateKeyName();
+      $api_keys = array_filter(
+        $this->amazeeClient->getPrivateApiKeys(),
+        fn($key) => $key->name === $key_name
+      );
+      $api_key = reset($api_keys);
+
+      if ($api_key) {
+        // Set the provider config, using a known key name to ease support
+        // preconfigured environments.
+        $this->config(static::CONFIG_NAME)
+          ->set('host', $api_key->litellm_api_url)
+          ->set('postgres_host', $api_key->database_host)
+          ->set('postgres_port', $api_key->database_port ?? static::POSTGRES_PORT_DEFAULT)
+          ->set('postgres_default_database', $api_key->database_name)
+          ->set('postgres_username', $api_key->database_username)
+          ->set('postgres_password', static::VDB_PASSWORD_NAME)
+          ->set('api_key', static::API_KEY_NAME)
+          ->save();
+
+        // Load or create the Amazee.io key.
+        /** @var \Drupal\Core\Entity\EntityStorageInterface $key_storage */
+        $key_storage = $this->entityTypeManager->getStorage('key');
+        /** @var \Drupal\key\Entity\Key $key*/
+        $key = $key_storage->load(static::API_KEY_NAME) ??
+          $key_storage->create([
+            'id' => static::API_KEY_NAME,
+            'label' => 'Amazee.io AI API Key',
+            'description' => 'Automatically created by the Amazee.io AI provider.',
+          ]);
+        // Update the key config.
+        $key
+          ->set('key_provider', 'config')
+          ->set('key_provider_settings', ['key_value' => $api_key->litellm_token])
+          ->set('key_input', 'text_field')
+          ->save();
+
+        // Load or create the Amazee.io Postgres key.
+        /** @var \Drupal\key\Entity\Key $database_key */
+        $database_key = $key_storage->load(static::VDB_PASSWORD_NAME) ??
+          $key_storage->create([
+            'id' => static::VDB_PASSWORD_NAME,
+            'label' => 'Amazee.io AI Database Key',
+            'description' => 'Automatically created by the Amazee.io AI provider.',
+          ]);
+        // Update the key config.
+        $database_key
+          ->set('key_provider', 'config')
+          ->set('key_provider_settings', ['key_value' => $api_key->database_password])
+          ->set('key_input', 'text_field')
+          ->save();
+
+        // Set the default models where available.
+        /** @var \Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider $provider */
+        $provider = $this->aiProviderManager->createInstance('amazeeio');
+        // Run post-setup when not in unit tests, since it connects to the
+        // real LLM.
+        if (!$this->testMode()) {
+          $provider->postSetup();
+        }
+        $this->messenger()->addStatus($this->t('This website has been connected to <strong>amazee.ai</strong>.'));
+      }
+    }
+    if ($form_state->get('state') === static::STATE_CONFIRM_DISCONNECT) {
+      $this->getTempStore()->delete('access_token');
       $this->config(static::CONFIG_NAME)
-        ->set('host', $api_key->litellm_api_url)
-        ->set('postgres_host', $api_key->database_host)
-        ->set('postgres_port', $api_key->database_port ?? static::POSTGRES_PORT_DEFAULT)
-        ->set('postgres_default_database', $api_key->database_name)
-        ->set('postgres_username', $api_key->database_username)
+        ->set('host', '')
+        ->set('postgres_host', '')
+        ->set('postgres_port', static::POSTGRES_PORT_DEFAULT)
+        ->set('postgres_default_database', '')
+        ->set('postgres_username', '')
         ->set('postgres_password', static::VDB_PASSWORD_NAME)
         ->set('api_key', static::API_KEY_NAME)
         ->save();
-
-      // Load or create the Amazee.io key.
+      /** @var EntityStorageInterface $key_storage */
       $key_storage = $this->entityTypeManager->getStorage('key');
-      $key = $key_storage->load(static::API_KEY_NAME) ??
-        $key_storage->create([
-          'id' => static::API_KEY_NAME,
-          'label' => 'Amazee.io AI API Key',
-          'description' => 'Automatically created by the Amazee.io AI provider.',
-        ]);
-      // Update the key config.
-      $key
-        ->set('key_provider', 'config')
-        ->set('key_provider_settings', ['key_value' => $api_key->litellm_token])
-        ->set('key_input', 'text_field')
-        ->save();
-
-      // Load or create the Amazee.io Postgres key.
-      $database_key = $key_storage->load(static::VDB_PASSWORD_NAME) ??
-        $key_storage->create([
-          'id' => static::VDB_PASSWORD_NAME,
-          'label' => 'Amazee.io AI Database Key',
-          'description' => 'Automatically created by the Amazee.io AI provider.',
-        ]);
-      // Update the key config.
-      $database_key
-        ->set('key_provider', 'config')
-        ->set('key_provider_settings', ['key_value' => $api_key->database_password])
-        ->set('key_input', 'text_field')
-        ->save();
-
-      // Set the default models where available.
-      $this->aiProviderManager
-        ->createInstance('amazeeio')
-        ->postSetup();
+      $apiKey = $key_storage->load(static::API_KEY_NAME);
+      $dbKey = $key_storage->load(static::VDB_PASSWORD_NAME);
+      if ($apiKey) {
+        $apiKey->delete();
+      }
+      if ($dbKey) {
+        $dbKey->delete();
+      }
+      $this->messenger()->addWarning($this->t('This website has been disconnected from <strong>amazee.ai</strong>.'));
     }
   }
 
@@ -647,30 +467,6 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
    */
   protected function getTempStore(): PrivateTempStore {
     return $this->tempStoreFactory->get('amazeeio_ai');
-  }
-
-  /**
-   * Get the available API keys suitable for a select element.
-   *
-   * @return array<string, string>
-   *   The API keys, with the token as the key and the name as the value.
-   *   Includes an empty option.
-   */
-  protected function getApiKeys(): array {
-    $keys = [
-      '' => $this->t('- Select -'),
-    ];
-    foreach ($this->amazeeClient->getPrivateApiKeys() as $private_api_key) {
-      $keys[$private_api_key->litellm_token] = new FormattableMarkup(
-        '@name [@region]',
-        [
-          '@name' => $private_api_key->name ?? substr_replace($private_api_key->litellm_token, '...', 3, -4),
-          '@region' => $private_api_key->region,
-        ],
-      );
-    }
-
-    return $keys;
   }
 
 }

@@ -45,6 +45,19 @@ interface ClientInterface {
   public function logout(): bool;
 
   /**
+   * Request a validation code for a given email address.
+   */
+  public function requestCode(string $email): void;
+
+  /**
+   * Validate an email validation code.
+   *
+   * @return ?string
+   *   The access token for this account or null if the code was invalid.
+   */
+  public function validateCode(string $email, string $code): ?string;
+
+  /**
    * Attempt to register and log in to the Amazee API.
    *
    * @param string $email

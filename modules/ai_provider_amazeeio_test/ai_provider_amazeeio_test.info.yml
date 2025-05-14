@@ -1,0 +1,7 @@
+type: module
+name: AI Provider amazee.io testing
+description: Mock amazee.io services for testing purposes.
+package: Testing
+hidden: true
+dependencies:
+  - ai_provider_amazeeio:ai_provider_amazeeio
