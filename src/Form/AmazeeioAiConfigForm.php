@@ -156,7 +156,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
 
     $state = $this->currentState($form_state);
     $form['image'] = [
-      "#markup" => '<p><img src="http://assets.amazee.ai/logo.png" alt="amazee.ai" width="400"/>',
+      "#markup" => '<p><img src="http://assets.amazee.ai/logo.png" alt="amazee.ai" width="250"/>',
     ];
     $ajax = [
       '#prefix' => '<div id="amazee-ai-config-form">',
@@ -164,7 +164,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     ];
     if ($state === static::STATE_DISCONNECTED) {
       $ajax['markup'] = [
-        '#markup' => '<p><em>' . $this->t('Enter your email address to receive a verification code to connect to <strong>amazee.ai</strong>.') . '</em></p>',
+        '#markup' => '<p><em>' . $this->t("Let's get you started! Enter your email address and we'll send you a code to sign in to <strong>amazee.ai</strong>.") . '</em></p>',
       ];
       $ajax['email'] = [
         // When in 'test mode' we use a simple text field, so the BrowserTest
@@ -183,7 +183,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
 
     if ($state === static::STATE_VERIFICATION) {
       $ajax['markup'] = [
-        '#markup' => '<p><em>' . $this->t('Enter the verification code that you should have received via email.') . '</em></p>',
+        '#markup' => '<p><em>' . $this->t('Check your inbox. Enter the verification code we just sent to your email.') . '</em></p>',
       ];
       $ajax['code'] = [
         '#type' => 'textfield',
@@ -205,7 +205,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
         $this->messenger->addError($this->t('An error occurred while retrieving the available regions. Please consult the Drupal error log.'));
       }
       $ajax['markup'] = [
-        '#markup' => '<p><em>' . $this->t('Select a region to host AI features in.') . '</em></p>',
+        '#markup' => '<p><em>' . $this->t('Choose where your AI features will be hosted.') . '</em></p>',
       ];
       $ajax['region'] = [
         '#type' => 'select',
@@ -265,7 +265,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     }
     if ($state === static::STATE_CONFIRM_DISCONNECT) {
       $ajax['markup'] = [
-        '#markup' => '<p><em>' . $this->t('Do you really want to disconnect from <strong>amazee.ai</string>?') . '</em></p>',
+        '#markup' => '<p><em>' . $this->t('Are you sure you want to disconnect from <strong>amazee.ai</string>?') . '</em></p>',
       ];
       $ajax['submit_confirm_disconnect'] = [
         '#type' => 'submit',
