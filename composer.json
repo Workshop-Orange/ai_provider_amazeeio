@@ -4,9 +4,11 @@
     "type": "drupal-module",
     "license": "GPL-2.0-or-later",
     "require": {
-        "drupal/ai": "1.1.x-dev@dev",
+        "drupal/ai": "^1.1",
         "drupal/ai_provider_litellm": "^1.0@beta",
-        "drupal/ai_vdb_provider_postgres": "1.0.x-dev",
-        "drupal/search_api": "^1.x-dev"
+        "drupal/ai_vdb_provider_postgres": "^1.0@alpha"
+    },
+    "require-dev": {
+        "drupal/search_api": ">1.20"
     }
 }
