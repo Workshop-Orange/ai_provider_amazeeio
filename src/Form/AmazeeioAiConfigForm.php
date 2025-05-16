@@ -171,7 +171,7 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
         // is actually able to enter an invalid email address.
         '#type' => $this->testMode() ? 'textfield' : 'email',
         '#title' => $this->t('Email'),
-        '#description' => $this->t('By entering your email address, you agree to amazee.io\'s <a href="https://www.amazee.ai/terms-of-service">Terms of Service.</a>'),
+        '#description' => $this->t('By entering your email address, you agree to amazee.io\'s <a href="https://amazee.ai/terms-and-conditions">Terms of Service.</a>'),
       ];
       $ajax['submit_email'] = [
         '#type' => 'submit',
