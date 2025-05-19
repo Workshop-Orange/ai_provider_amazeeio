@@ -322,16 +322,27 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
     }
     if ($state === static::STATE_VERIFIED) {
       $region = $form_state->getValue('region');
-      $private_key = $this->amazeeClient->createPrivateAiKey(
-        $region,
-        static::generatePrivateKeyName()
+      $key_name = static::generatePrivateKeyName();
+      $api_keys = array_filter(
+        $this->amazeeClient->getPrivateApiKeys(),
+        fn($key) => $key->name === $key_name
       );
-      if (!$private_key) {
-        $form_state->setErrorByName('region', $this->t('An error occurred while generating the private key. Please consult the Drupal error log.'));
-      }
-      else {
+      if (count($api_keys) > 0) {
         // Return now to not rebuild the form but submit it.
         return;
+      }
+      else {
+        $private_key = $this->amazeeClient->createPrivateAiKey(
+          $region,
+          static::generatePrivateKeyName()
+        );
+        if (!$private_key) {
+          $form_state->setErrorByName('region', $this->t('An error occurred while generating the private key. Please consult the Drupal error log.'));
+        }
+        else {
+          // Return now to not rebuild the form but submit it.
+          return;
+        }
       }
     }
     if ($state === static::STATE_CONNECTED) {

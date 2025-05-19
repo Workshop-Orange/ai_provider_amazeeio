@@ -4,4 +4,4 @@ services:
     public: false
     decorates: http_client
     decoration_priority: 3
-    arguments: ['@ai_provider_amazeeio_test.http_client.inner']
+    arguments: ['@ai_provider_amazeeio_test.http_client.inner', '@state']

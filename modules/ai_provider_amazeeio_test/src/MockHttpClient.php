@@ -2,6 +2,7 @@
 
 namespace Drupal\ai_provider_amazeeio_test;
 
+use Drupal\Core\State\StateInterface;
 use Drupal\ai_provider_amazeeio\Form\AmazeeioAiConfigForm;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
@@ -26,7 +27,13 @@ class MockHttpClient extends Client {
    */
   protected Client $innerService;
 
-  public function __construct(Client $inner_service) {
+  /**
+   * A state service for simple in-test states.
+   */
+  protected StateInterface $state;
+
+  public function __construct(Client $inner_service, StateInterface $state) {
+    $this->state = $state;
     $this->innerService = $inner_service;
   }
 
@@ -144,6 +151,9 @@ class MockHttpClient extends Client {
    * Mock private key generation.
    */
   protected function mockPostPrivateKey(ParameterBag $body, ParameterBag $header): ResponseInterface {
+    if ($this->state->get('ai_provider_amazeeio_test')) {
+      throw new \Exception('Key has already been created.');
+    }
     if ($err = $this->authorizeAccess($body, $header)) {
       return $err;
     }
@@ -159,6 +169,7 @@ class MockHttpClient extends Client {
       $this->error(400, "Invalid region_id $region_id.");
     }
     $region = static::REGIONS[$region_id];
+    $this->state->set('ai_provider_amazeeio_test', TRUE);
     return $this->success([
       'litellm_token' => '4321',
       'litellm_api_url' => $region['litellm_api_url'],
@@ -172,7 +183,7 @@ class MockHttpClient extends Client {
     if ($err = $this->authorizeAccess($body, $header)) {
       return $err;
     }
-    return $this->success([
+    $keys = [
       [
         "id" => 0,
         "name" => "some other key",
@@ -187,7 +198,9 @@ class MockHttpClient extends Client {
         "owner_id" => 0,
         "team_id" => 0,
       ],
-      [
+    ];
+    if ($this->state->get('ai_provider_amazeeio_test')) {
+      $keys[] = [
         "id" => 1,
         "name" => AmazeeioAiConfigForm::generatePrivateKeyName(),
         "region" => static::REGIONS[2]['name'],
@@ -200,8 +213,9 @@ class MockHttpClient extends Client {
         "created_at" => "2025-05-13T05:42:48.124Z",
         "owner_id" => 0,
         "team_id" => 0,
-      ],
-    ]);
+      ];
+    }
+    return $this->success($keys);
   }
 
   /**

@@ -187,4 +187,12 @@ class AmazeeioProviderTest extends BrowserTestBase {
     $this->assertNull($dbKey);
   }
 
+  /**
+   * Test re-connecting the same website.
+   */
+  public function testReconnect() {
+    $this->testDisconnect();
+    $this->testKeyGeneration();
+  }
+
 }
