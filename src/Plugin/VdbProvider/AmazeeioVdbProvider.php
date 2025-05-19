@@ -4,6 +4,7 @@ namespace Drupal\ai_provider_amazeeio\Plugin\VdbProvider;
 
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\Core\Form\FormStateInterface;
 use Drupal\ai\Attribute\AiVdbProvider;
 use Drupal\ai_vdb_provider_postgres\Exception\DatabaseNotConfiguredException;
 use Drupal\ai_vdb_provider_postgres\Plugin\VdbProvider\PostgresProvider;
@@ -46,6 +47,21 @@ class AmazeeioVdbProvider extends PostgresProvider {
       default_database: $config['default_database'],
       database: $database
     );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function buildSettingsForm(
+    array $form,
+    FormStateInterface $form_state,
+    array $configuration,
+  ): array {
+    $config = $this->getConfig();
+    $form = parent::buildSettingsForm($form, $form_state, $configuration);
+    $form['database_name']['#default_value'] = $configuration['database_settings']['database_name'] ?? $config->get(key: 'postgres_default_database');
+    $form['collection']['#default_value'] = $configuration['database_settings']['collection'] ?? 'amazee_ai';
+    return $form;
   }
 
   /**
