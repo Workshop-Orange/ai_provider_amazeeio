@@ -1,7 +1,7 @@
 api_key: 'amazeeio_ai'
 host: ''
 moderation: FALSE
-amazee_host: 'https://backend.main.amazeeai.us2.amazee.io'
+amazee_host: 'https://api.amazee.ai'
 postgres_host: ''
 postgres_port: ''
 postgres_default_database: ''
