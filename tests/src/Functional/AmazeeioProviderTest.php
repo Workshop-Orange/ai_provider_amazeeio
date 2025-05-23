@@ -53,7 +53,7 @@ class AmazeeioProviderTest extends BrowserTestBase {
   public function testProviderAvailable() {
     $this->drupalGet('/admin/config/ai/providers');
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->linkExists('Amazee.io AI Authentication');
+    $this->assertSession()->linkExists('amazee.ai Authentication');
   }
 
   /**

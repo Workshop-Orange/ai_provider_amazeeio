@@ -5,6 +5,7 @@
  * Hook implementations for the Amazee.io AI provider.
  */
 
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\ai_search\Plugin\search_api\backend\SearchApiAiSearchBackend;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\user\UserInterface;
@@ -81,4 +82,23 @@ function _ai_provider_amazeeio_amazee_logout(): void {
     // Log error but do nothing as this shouldn't affect the user.
     \Drupal::logger('ai_provider_amazeeio')->error('Failed to log out of Amazee.io: @error', ['@error' => $e->getMessage()]);
   }
+}
+
+/**
+ * Implements hook_menu_links_discovered_alter().
+ *
+ * Alter descriptions of Open-AI provider menu links to not confuse users.
+ */
+function ai_provider_amazeeio_menu_links_discovered_alter(&$links) {
+  $openai = $links['ai_provider_openai.settings_menu'];
+
+  $links['ai_provider_litellm.settings_menu']['description'] = _ai_provider_amazeeio_inactive_description($links['ai_provider_litellm.settings_menu']['description']);
+  $links['ai_provider_openai.settings_menu']['description'] = _ai_provider_amazeeio_inactive_description($links['ai_provider_openai.settings_menu']['description']);
+}
+
+/**
+ * Adjust the description of inactive menu items.
+ */
+function _ai_provider_amazeeio_inactive_description(TranslatableMarkup $input) {
+  return new TranslatableMarkup('@description<br/><em class="form-item__description"><strong>amazee.ai</strong> builds on this provider, but it is not used unless you explicitly configure it.</em>', ['@description' => $input]);
 }

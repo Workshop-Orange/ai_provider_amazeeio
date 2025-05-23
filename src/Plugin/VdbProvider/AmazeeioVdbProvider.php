@@ -74,6 +74,7 @@ class AmazeeioVdbProvider extends PostgresProvider {
    */
   public function getConnectionData() {
     $config = $this->getConfig();
+    $output = [];
     $output['host'] = $this->configuration['host'] ?? $config->get(key: 'postgres_host');
     // Fail if host is not set.
     if (!$output['host']) {
@@ -86,7 +87,10 @@ class AmazeeioVdbProvider extends PostgresProvider {
     $token = $config->get(key: 'postgres_password');
     $output['password'] = '';
     if ($token) {
-      $output['password'] = $this->keyRepository->getKey(key_id: $token)->getKeyValue();
+      $key = $this->keyRepository->getKey(key_id: $token);
+      if ($key) {
+        $output['password'] = $key->getKeyValue();
+      }
     }
     if (!empty($this->configuration['password'])) {
       $output['password'] = $this->configuration['password'];
