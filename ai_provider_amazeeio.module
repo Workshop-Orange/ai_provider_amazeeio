@@ -40,15 +40,6 @@ function ai_provider_amazeeio_search_api_index_update(IndexInterface $index): vo
 }
 
 /**
- * Implements hook_ai_provider_info_alter().
- */
-function ai_provider_amazeeio_ai_provider_info_alter(&$providers): void {
-  // Remove the providers that this builds upon to simplify UI.
-  unset($providers['openai']);
-  unset($providers['litellm']);
-}
-
-/**
  * Implements hook_user_logout().
  */
 function ai_provider_amazeeio_user_logout(AccountInterface $account): void {
