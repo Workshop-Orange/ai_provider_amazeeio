@@ -6,8 +6,7 @@ use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\ai\AiProviderPluginManager;
 use Drupal\ai\AiVdbProviderPluginManager;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface;
-use Drupal\ai_provider_litellm\Form\LiteLlmAiConfigForm;
-use Drupal\ai_provider_litellm\LiteLLM\LiteLlmAiClient;
+use Drupal\Core\Form\ConfigFormBase;
 use Drupal\ai_provider_openai\OpenAiHelper;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
@@ -21,7 +20,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 /**
  * Configure Amazee.io AI API access Form.
  */
-class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
+class AmazeeioAiConfigForm extends ConfigFormBase {
 
   /**
    * Config settings.
@@ -69,20 +68,19 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
   const STATE_CONFIRM_DISCONNECT = 'confirm_disconnect';
 
   /**
-   * Constructs a new LiteLlmAiConfigForm object.
+   * Constructs a new AmazeeioAiConfigForm object.
    */
   public function __construct(
-    AiProviderPluginManager $aiProviderManager,
-    KeyRepositoryInterface $keyRepository,
-    OpenAiHelper $openAiHelper,
-    Client $client,
+    protected AiProviderPluginManager $aiProviderManager,
+    protected KeyRepositoryInterface $keyRepository,
+    protected OpenAiHelper $openAiHelper,
+    protected Client $client,
     protected ClientInterface $amazeeClient,
     protected PrivateTempStoreFactory $tempStoreFactory,
     protected EntityTypeManagerInterface $entityTypeManager,
     protected AiVdbProviderPluginManager $vdbProviderPluginManager,
     protected ModuleHandlerInterface $moduleHandler,
   ) {
-    parent::__construct($aiProviderManager, $keyRepository, $openAiHelper, $client);
     $config = $this->config(static::CONFIG_NAME);
     $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
     $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
@@ -110,6 +108,13 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
    */
   public function getFormId(): string {
     return 'amazeeio_ai_settings';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function getEditableConfigNames(): array {
+    return [static::CONFIG_NAME];
   }
 
   /**
@@ -231,22 +236,17 @@ class AmazeeioAiConfigForm extends LiteLlmAiConfigForm {
 
       $host = $config->get('host');
       if (!(empty($host) || !$this->keyRepository->getKey(static::API_KEY_NAME)->getKeyValue())) {
-        $client = new LiteLlmAiClient($this->client, $this->keyRepository, $host, 'amazeeio_ai');
-        $keys = $client->keyInfo();
-        $key_info = reset($keys);
-
         $ajax['usage'] = [
           '#theme' => 'table',
           '#rows' => [],
           '#weight' => 20,
         ];
 
-        if ($key_info->info->key_alias) {
-          $ajax['usage']['#rows'][] = [
-            $this->t('Name'),
-            $key_info->info->key_alias,
-          ];
-        }
+        // Show the key name (hostname)
+        $ajax['usage']['#rows'][] = [
+          $this->t('Name'),
+          static::generatePrivateKeyName(),
+        ];
 
         if ($database = $config->get('postgres_default_database')) {
           $ajax['usage']['#rows'][] = [

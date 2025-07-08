@@ -4,7 +4,7 @@ namespace Drupal\ai_provider_amazeeio\Plugin\AiProvider;
 
 use Drupal\ai\AiProviderPluginManager;
 use Drupal\ai\Attribute\AiProvider;
-use Drupal\ai_provider_litellm\Plugin\AiProvider\LiteLlmAiProvider;
+use Drupal\ai_provider_openai\Plugin\AiProvider\OpenAiProvider;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use GuzzleHttp\Exception\ClientException;
@@ -17,7 +17,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   id: 'amazeeio',
   label: new TranslatableMarkup('Amazee.io AI'),
 )]
-class AmazeeioAiProvider extends LiteLlmAiProvider {
+class AmazeeioAiProvider extends OpenAiProvider {
 
   /**
    * The AI Provider Manager.
@@ -61,8 +61,8 @@ class AmazeeioAiProvider extends LiteLlmAiProvider {
     $default_models = [];
 
     try {
-      $this->loadClient();
-      $models = array_keys($this->liteLlmClient->models());
+      $client = $this->getClient();
+      $models = array_map(fn($model) => $model->id, $client->models()->list()->data);
       $operation_types = array_merge(
         array_map(
           fn(array $operation_type) => $operation_type['id'],
@@ -81,6 +81,55 @@ class AmazeeioAiProvider extends LiteLlmAiProvider {
     }
 
     return $default_models;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getModelSettings(string $model_id, array $generalConfig = []): array {
+    $client = $this->getClient();
+    $models = $client->models()->list()->data;
+    $model_info = NULL;
+
+    foreach ($models as $model) {
+      if ($model->id === $model_id) {
+        $model_info = $model;
+        break;
+      }
+    }
+
+    if (!$model_info || !property_exists($model_info, 'supportedOpenAiParams')) {
+      return $generalConfig;
+    }
+
+    foreach (array_keys($generalConfig) as $name) {
+      if (!in_array($name, $model_info->supportedOpenAiParams)) {
+        unset($generalConfig[$name]);
+      }
+    }
+
+    return $generalConfig;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSupportedOperationTypes(): array {
+    return [
+      'chat_with_complex_json',
+      'chat_with_image_vision',
+      'chat_with_tools',
+      'chat_with_structured_response',
+    ];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function maxEmbeddingsInput($model_id = ''): int {
+    // @todo This corresponds to OpenAI API.
+    // Ideally, we should provide real number per model.
+    return 8191;
   }
 
 }

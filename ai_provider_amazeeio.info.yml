@@ -5,6 +5,7 @@ type: module
 core_version_requirement: ^10.2 || ^11
 
 dependencies:
-  - ai_provider_litellm:ai_provider_litellm
+  - ai:ai
+  - ai_provider_openai:ai_provider_openai
   - ai_vdb_provider_postgres:ai_vdb_provider_postgres
   - key:key

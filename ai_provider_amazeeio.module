@@ -81,10 +81,10 @@ function _ai_provider_amazeeio_amazee_logout(): void {
  * Alter descriptions of Open-AI provider menu links to not confuse users.
  */
 function ai_provider_amazeeio_menu_links_discovered_alter(&$links) {
-  $openai = $links['ai_provider_openai.settings_menu'];
-
-  $links['ai_provider_litellm.settings_menu']['description'] = _ai_provider_amazeeio_inactive_description($links['ai_provider_litellm.settings_menu']['description']);
-  $links['ai_provider_openai.settings_menu']['description'] = _ai_provider_amazeeio_inactive_description($links['ai_provider_openai.settings_menu']['description']);
+  // Modify OpenAI provider description.
+  if (isset($links['ai_provider_openai.settings_menu'])) {
+    $links['ai_provider_openai.settings_menu']['description'] = _ai_provider_amazeeio_inactive_description($links['ai_provider_openai.settings_menu']['description']);
+  }
 }
 
 /**
