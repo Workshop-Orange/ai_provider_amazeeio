@@ -14,8 +14,8 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * Plugin implementation of the 'Amazee.io AI' provider.
  */
 #[AiProvider(
-  id: 'amazeeio',
-  label: new TranslatableMarkup('Amazee.io AI'),
+    id: 'amazeeio',
+    label: new TranslatableMarkup('Amazee.io AI'),
 )]
 class AmazeeioAiProvider extends OpenAiProvider {
 
@@ -64,12 +64,12 @@ class AmazeeioAiProvider extends OpenAiProvider {
       $client = $this->getClient();
       $models = array_map(fn($model) => $model->id, $client->models()->list()->data);
       $operation_types = array_merge(
-        array_map(
-          fn(array $operation_type) => $operation_type['id'],
-          $this->aiProviderManager->getOperationTypes(),
-        ),
-        ['chat_with_complex_json', 'chat_with_image_vision', 'chat_with_tools', 'chat_with_structured_response'],
-      );
+            array_map(
+                fn(array $operation_type) => $operation_type['id'],
+                $this->aiProviderManager->getOperationTypes(),
+            ),
+            ['chat_with_complex_json', 'chat_with_image_vision', 'chat_with_tools', 'chat_with_structured_response'],
+        );
       foreach ($operation_types as $operation_type) {
         if (in_array($operation_type, $models)) {
           $default_models[$operation_type] = $operation_type;

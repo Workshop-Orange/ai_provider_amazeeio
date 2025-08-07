@@ -5,4 +5,3 @@ ai_provider_amazeeio.settings_form:
     _title: 'Setup Amazee.io AI Authentication'
   requirements:
     _permission: 'administer ai providers'
-

@@ -3,7 +3,6 @@
 namespace Drupal\Tests\ai_provider_amazeeio\Functional;
 
 use Drupal\ai_provider_amazeeio\Form\AmazeeioAiConfigForm;
-
 use Drupal\Tests\BrowserTestBase;
 
 /**
@@ -38,7 +37,7 @@ class AmazeeioProviderTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected function setUp() : void {
+  protected function setUp(): void {
     parent::setUp();
     $account = $this->drupalCreateUser([
       'administer ai',
@@ -59,7 +58,7 @@ class AmazeeioProviderTest extends BrowserTestBase {
   /**
    * Fill the email step.
    */
-  protected function fillEmail(string $email) {
+  protected function fillEmail(string $email): void {
     $page = $this->getSession()->getPage();
     $this->drupalGet('/admin/config/ai/providers/amazeeio');
     $page->fillField('Email', $email);
@@ -70,7 +69,7 @@ class AmazeeioProviderTest extends BrowserTestBase {
   /**
    * Fill the code step.
    */
-  protected function fillCode(string $code) {
+  protected function fillCode(string $code): void {
     $page = $this->getSession()->getPage();
     $page->fillField('Code', $code);
     $page->pressButton('Validate');
@@ -80,7 +79,7 @@ class AmazeeioProviderTest extends BrowserTestBase {
   /**
    * Select a region.
    */
-  protected function selectRegion(string $label) {
+  protected function selectRegion(string $label): void {
     $page = $this->getSession()->getPage();
     $page->selectFieldOption('Region', $label);
     $page->pressButton('Connect');
@@ -105,12 +104,31 @@ class AmazeeioProviderTest extends BrowserTestBase {
   }
 
   /**
+   * Helper function to get the options of select field.
+   *
+   * @todo port of deprecated getOptions function, see https://www.drupal.org/node/3523039 for alternatives
+   */
+  protected function getFieldOptions($select): array {
+    $select = $this->assertSession()->selectExists($select);
+    $options = [];
+
+    /** @var \Behat\Mink\Element\NodeElement $option */
+    foreach ($select->findAll('xpath', '//option') as $option) {
+      $label = $option->getText();
+      $value = $option->getAttribute('value') ?: $label;
+      $options[$value] = $label;
+    }
+
+    return $options;
+  }
+
+  /**
    * Inactive regions are not selectable.
    */
   public function testInactiveRegions() {
     $this->fillEmail('john@doe.com');
     $this->fillCode('42');
-    $regions = $this->getOptions('Region');
+    $regions = $this->getFieldOptions('Region');
     // "1" is the index of the "Inactive" region.
     // @see MockHttpClient::mockRegions
     $this->assertArrayNotHasKey(1, $regions);

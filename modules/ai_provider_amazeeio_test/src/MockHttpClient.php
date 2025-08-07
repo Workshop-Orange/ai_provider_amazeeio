@@ -19,7 +19,6 @@ use Symfony\Component\HttpFoundation\ParameterBag;
  */
 class MockHttpClient extends Client {
 
-
   /**
    * The decorated http_client service.
    *
@@ -32,6 +31,9 @@ class MockHttpClient extends Client {
    */
   protected StateInterface $state;
 
+  /**
+   * {@inheritdoc}
+   */
   public function __construct(Client $inner_service, StateInterface $state) {
     $this->state = $state;
     $this->innerService = $inner_service;
@@ -57,7 +59,7 @@ class MockHttpClient extends Client {
   /**
    * Mock requests for email validation.
    */
-  protected function mockValidateEmail(ParameterBag $body, ParameterBag $header) : ResponseInterface {
+  protected function mockValidateEmail(ParameterBag $body, ParameterBag $header): ResponseInterface {
     // Nothing to do here. In testing we don't really send email.
     // Verification code "42" works.
     return $this->success([]);
@@ -70,28 +72,32 @@ class MockHttpClient extends Client {
     if (!($body->get('username') === 'john@doe.com' && $body->get('verification_code') === '42')) {
       $this->error(401, 'Invalid code.');
     }
-    return $this->success([
-      'access_token' => '1234',
-      'token_type' => 'bearer',
-    ]);
+    return $this->success(
+      [
+        'access_token' => '1234',
+        'token_type' => 'bearer',
+      ]
+    );
   }
 
   /**
    * Mock the user info request.
    */
-  protected function mockMe(ParameterBag $body, ParameterBag $header) : ResponseInterface {
+  protected function mockMe(ParameterBag $body, ParameterBag $header): ResponseInterface {
     if ($err = $this->authorizeAccess($body, $header)) {
       return $err;
     }
-    return $this->success([
-      "email" => "john@doe.com",
-      "id" => 0,
-      "is_active" => TRUE,
-      "is_admin" => TRUE,
-      "team_id" => 1,
-      "team_name" => "amazee.io",
-      "role" => "gm",
-    ]);
+    return $this->success(
+      [
+        "email" => "john@doe.com",
+        "id" => 0,
+        "is_active" => TRUE,
+        "is_admin" => TRUE,
+        "team_id" => 1,
+        "team_name" => "amazee.io",
+        "role" => "gm",
+      ]
+    );
   }
 
   /**
@@ -170,10 +176,12 @@ class MockHttpClient extends Client {
     }
     $region = static::REGIONS[$region_id];
     $this->state->set('ai_provider_amazeeio_test', TRUE);
-    return $this->success([
-      'litellm_token' => '4321',
-      'litellm_api_url' => $region['litellm_api_url'],
-    ]);
+    return $this->success(
+      [
+        'litellm_token' => '4321',
+        'litellm_api_url' => $region['litellm_api_url'],
+      ]
+    );
   }
 
   /**
@@ -226,16 +234,18 @@ class MockHttpClient extends Client {
       return $err;
     }
     $key = substr($header->get('Authorization'), strlen('Bearer '));
-    return $this->success([
-      'key' => $key,
-      'info' => [
-        'key_alias' => AmazeeioAiConfigForm::generatePrivateKeyName(),
-        'key_name' => $key,
-        'spend' => 200,
-        'max_budget' => 500,
-        'blocked' => FALSE,
-      ],
-    ]);
+    return $this->success(
+      [
+        'key' => $key,
+        'info' => [
+          'key_alias' => AmazeeioAiConfigForm::generatePrivateKeyName(),
+          'key_name' => $key,
+          'spend' => 200,
+          'max_budget' => 500,
+          'blocked' => FALSE,
+        ],
+      ]
+    );
   }
 
   /**
@@ -248,9 +258,11 @@ class MockHttpClient extends Client {
     if (!$body->has('message')) {
       $this->error(400, 'Missing message argument');
     }
-    return $this->success([
-      'uppercase' => strtoupper($body->get('message')),
-    ]);
+    return $this->success(
+      [
+        'uppercase' => strtoupper($body->get('message')),
+      ]
+    );
   }
 
   /**
@@ -259,7 +271,7 @@ class MockHttpClient extends Client {
    * @param array $body
    *   The JSON response body as an associative array.
    */
-  protected function success(array $body) : Response {
+  protected function success(array $body): Response {
     return new Response(200, [], Utils::jsonEncode($body));
   }
 
@@ -270,7 +282,8 @@ class MockHttpClient extends Client {
     throw new ClientException(
       message: $message,
       request: new Request('GET', ''),
-      response: new Response($status, [], Utils::jsonEncode(['detail' => $message])));
+      response: new Response($status, [], Utils::jsonEncode(['detail' => $message]))
+    );
   }
 
   /**

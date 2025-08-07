@@ -24,6 +24,14 @@ interface ClientInterface {
   public function setHost(string $host): void;
 
   /**
+   * Get the team ID for the current user.
+   *
+   * @return int
+   *   The team ID.
+   */
+  public function getTeamId(): int;
+
+  /**
    * Attempt to log in to the Amazee API.
    *
    * @param string $username
@@ -93,13 +101,15 @@ interface ClientInterface {
    *   The region for the key.
    * @param string $name
    *   The name for the key.
+   * @param int|null $team_id
+   *   (optional) The team ID to associate the key with.
    *
    * @return array<string, string>
    *   Info about the created Private AI key. Keys are:
    *     - litellm_token: the token to use.
    *     - litellm_api_url: the API URL to use.
    */
-  public function createPrivateAiKey(string $region_id, string $name): array;
+  public function createPrivateAiKey(string $region_id, string $name, ?int $team_id = NULL): array;
 
   /**
    * Get the private keys for the authorized user from the API.

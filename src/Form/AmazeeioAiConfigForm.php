@@ -123,7 +123,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    * Based on the current `$form_state` as well as the authorization
    * status.
    */
-  public function currentState(FormStateInterface $form_state) : string {
+  public function currentState(FormStateInterface $form_state): string {
     return $form_state->get('state')
       ? $form_state->get('state')
       : ($this->amazeeClient->authorized()
@@ -135,7 +135,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
   /**
    * Determine if the module is in "test mode".
    */
-  protected function testMode() : bool {
+  protected function testMode(): bool {
     return $this->moduleHandler->moduleExists('ai_provider_amazeeio_test');
   }
 
@@ -334,7 +334,8 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       else {
         $private_key = $this->amazeeClient->createPrivateAiKey(
           $region,
-          static::generatePrivateKeyName()
+          static::generatePrivateKeyName(),
+          $this->amazeeClient->getTeamId()
         );
         if (!$private_key) {
           $form_state->setErrorByName('region', $this->t('An error occurred while generating the private key. Please consult the Drupal error log.'));
@@ -405,13 +406,15 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         // Load or create the Amazee.io key.
         /** @var \Drupal\Core\Entity\EntityStorageInterface $key_storage */
         $key_storage = $this->entityTypeManager->getStorage('key');
-        /** @var \Drupal\key\Entity\Key $key*/
+        /** @var \Drupal\key\Entity\Key $key */
         $key = $key_storage->load(static::API_KEY_NAME) ??
-          $key_storage->create([
-            'id' => static::API_KEY_NAME,
-            'label' => 'Amazee.io AI API Key',
-            'description' => 'Automatically created by the Amazee.io AI provider.',
-          ]);
+          $key_storage->create(
+            [
+              'id' => static::API_KEY_NAME,
+              'label' => 'Amazee.io AI API Key',
+              'description' => 'Automatically created by the Amazee.io AI provider.',
+            ]
+          );
         // Update the key config.
         $key
           ->set('key_provider', 'config')
@@ -422,11 +425,13 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         // Load or create the Amazee.io Postgres key.
         /** @var \Drupal\key\Entity\Key $database_key */
         $database_key = $key_storage->load(static::VDB_PASSWORD_NAME) ??
-          $key_storage->create([
-            'id' => static::VDB_PASSWORD_NAME,
-            'label' => 'Amazee.io AI Database Key',
-            'description' => 'Automatically created by the Amazee.io AI provider.',
-          ]);
+          $key_storage->create(
+            [
+              'id' => static::VDB_PASSWORD_NAME,
+              'label' => 'Amazee.io AI Database Key',
+              'description' => 'Automatically created by the Amazee.io AI provider.',
+            ]
+          );
         // Update the key config.
         $database_key
           ->set('key_provider', 'config')

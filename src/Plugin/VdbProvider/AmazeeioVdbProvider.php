@@ -14,8 +14,8 @@ use PgSql\Connection as PgSql;
  * Plugin implementation of the 'Amazee.io Vector Database' provider.
  */
 #[AiVdbProvider(
-  id: 'amazeeio_vector_db',
-  label: new TranslatableMarkup('Amazee.io Vector Database'),
+    id: 'amazeeio_vector_db',
+    label: new TranslatableMarkup('Amazee.io Vector Database'),
 )]
 class AmazeeioVdbProvider extends PostgresProvider {
 
@@ -40,13 +40,13 @@ class AmazeeioVdbProvider extends PostgresProvider {
   public function getConnection(?string $database = NULL): PgSql|false {
     $config = $this->getConnectionData();
     return $this->getClient()->getConnection(
-      host: $config['host'],
-      port: $config['port'],
-      username: $config['username'],
-      password: $config['password'],
-      default_database: $config['default_database'],
-      database: $database
-    );
+          host: $config['host'],
+          port: $config['port'],
+          username: $config['username'],
+          password: $config['password'],
+          default_database: $config['default_database'],
+          database: $database
+      );
   }
 
   /**

@@ -5,6 +5,7 @@ namespace Drupal\ai_provider_amazeeio\AmazeeIoApi;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Utils;
 use Psr\Http\Message\ResponseInterface;
 
@@ -28,6 +29,13 @@ class AmazeeClient implements ClientInterface {
   protected string $host = '';
 
   /**
+   * The team id to use for requests.
+   *
+   * @var int
+   */
+  protected int $teamId = 0;
+
+  /**
    * Construct an AmazeeClient.
    *
    * @param \GuzzleHttp\Client $client
@@ -38,7 +46,8 @@ class AmazeeClient implements ClientInterface {
   public function __construct(
     protected Client $client,
     protected LoggerChannelFactoryInterface $loggerFactory,
-  ) {}
+  ) {
+  }
 
   /**
    * {@inheritdoc}
@@ -57,14 +66,23 @@ class AmazeeClient implements ClientInterface {
   /**
    * {@inheritdoc}
    */
+  public function getTeamId(): int {
+    return $this->teamId;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function login(string $username, string $password): string {
     try {
-      $response = $this->makeRequest('POST', '/auth/login', [
-        'username' => $username,
-        'password' => $password,
-      ]);
+      $response = $this->makeRequest(
+            'POST', '/auth/login', [
+              'username' => $username,
+              'password' => $password,
+            ]
+        );
     }
-    catch (ClientException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception $e) {
       $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to login to Amazee.io: @error', ['@error' => $e->getMessage()]);
       return '';
     }
@@ -85,7 +103,7 @@ class AmazeeClient implements ClientInterface {
     try {
       $this->makeRequest('POST', '/auth/logout');
     }
-    catch (ClientException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception $e) {
       $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to log out of Amazee.io: @error', ['@error' => $e->getMessage()]);
       return FALSE;
     }
@@ -100,7 +118,7 @@ class AmazeeClient implements ClientInterface {
     try {
       $this->makeRequest('POST', '/auth/validate-email', ['email' => $email]);
     }
-    catch (ClientException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception $e) {
       $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to validate email: @error', ['@error' => $e->getMessage()]);
     }
   }
@@ -117,7 +135,7 @@ class AmazeeClient implements ClientInterface {
       $data = Utils::jsonDecode($result->getBody()->getContents(), TRUE);
       return $data['access_token'];
     }
-    catch (ClientException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception $e) {
       $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to validate email: @error', ['@error' => $e->getMessage()]);
     }
     return NULL;
@@ -128,12 +146,14 @@ class AmazeeClient implements ClientInterface {
    */
   public function register(string $email, string $password): string {
     try {
-      $this->makeRequest('POST', '/auth/register', [
-        'email' => $email,
-        'password' => $password,
-      ]);
+      $this->makeRequest(
+            'POST', '/auth/register', [
+              'email' => $email,
+              'password' => $password,
+            ]
+        );
     }
-    catch (ClientException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception $e) {
       $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to register with Amazee.io: @error', ['@error' => $e->getMessage()]);
       return '';
     }
@@ -146,22 +166,26 @@ class AmazeeClient implements ClientInterface {
    */
   public function authorized(): bool {
     try {
-      $this->makeRequest('GET', '/auth/me');
+      $response = $this->makeRequest('GET', '/auth/me');
+      $response_body = json_decode($response->getBody());
+      $this->teamId = (int) $response_body->team_id;
       return TRUE;
     }
-    catch (ClientException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception $e) {
       return FALSE;
     }
   }
 
   /**
    * {@inheritdoc}
+   *
+   * @throws \GuzzleHttp\Exception\GuzzleException
    */
   public function getRegions(): array {
     try {
       $response = $this->makeRequest('GET', '/regions');
     }
-    catch (ClientException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception $e) {
       $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to get current list of regions from Amazee.io: @error', ['@error' => $e->getMessage()]);
       throw $e;
     }
@@ -181,14 +205,23 @@ class AmazeeClient implements ClientInterface {
   /**
    * {@inheritdoc}
    */
-  public function createPrivateAiKey(string $region_id, string $name): array {
+  public function createPrivateAiKey(string $region_id, string $name, ?int $team_id = NULL): array {
     try {
-      $response = $this->makeRequest('POST', '/private-ai-keys', [
+      $body = [
         'region_id' => $region_id,
         'name' => $name,
-      ]);
+        'team_id' => $team_id,
+      ];
+      if (empty($team_id)) {
+        $this->loggerFactory->get('ai_provider_amazeeio')->warning('No team_id provided for private key creation, will try to get it from /auth/me.');
+        // Run auth/me again to get the team_id.
+        $response = $this->makeRequest('GET', '/auth/me');
+        $response_body = json_decode($response->getBody()->getContents());
+        $body['team_id'] = $response_body->team_id;
+      }
+      $response = $this->makeRequest('POST', '/private-ai-keys', $body);
     }
-    catch (ClientException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception $e) {
       $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to create private key Amazee.io: @error', ['@error' => $e->getMessage()]);
       return [];
     }
@@ -207,7 +240,7 @@ class AmazeeClient implements ClientInterface {
     try {
       $response = $this->makeRequest('GET', '/private-ai-keys');
     }
-    catch (ClientException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception $e) {
       $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to get existing private keys Amazee.io: @error', ['@error' => $e->getMessage()]);
       return [];
     }
@@ -261,7 +294,8 @@ class AmazeeClient implements ClientInterface {
    * @return \Psr\Http\Message\ResponseInterface
    *   The response from the API.
    *
-   * @throws \GuzzleHttp\Exception\GuzzleException
+   * @throws \GuzzleHttp\Exception\GuzzleException|\Exception
+   *   If the request fails.
    */
   protected function makeRequest(string $type, string $endpoint, ?array $body = NULL, array $headers = []): ResponseInterface {
     if (empty($this->host)) {
@@ -278,22 +312,21 @@ class AmazeeClient implements ClientInterface {
 
     $body = $body ? json_encode($body) : NULL;
 
-    switch ($type) {
-      case 'GET':
-        return $this->client->get($this->host . $endpoint, [
-          'headers' => $headers,
-          'body' => $body,
-        ]);
-
-      case 'POST':
-        return $this->client->post($this->host . $endpoint, [
-          'headers' => $headers,
-          'body' => $body,
-        ]);
-
-      default:
-        throw new \InvalidArgumentException('Only GET and POST request types are supported.');
-    }
+    return match ($type) {
+      'GET' => $this->client->get(
+            $this->host . $endpoint, [
+              'headers' => $headers,
+              'body' => $body,
+            ]
+        ),
+            'POST' => $this->client->post(
+            $this->host . $endpoint, [
+              'headers' => $headers,
+              'body' => $body,
+            ]
+        ),
+            default => throw new \InvalidArgumentException('Only GET and POST request types are supported.'),
+    };
   }
 
 }
