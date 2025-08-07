@@ -17,16 +17,9 @@ include:
       - '/includes/include.drupalci.variables.yml'
       - '/includes/include.drupalci.workflows.yml'
 
-# Linting jobs are allowed to fail by default, let's change that below.
-cspell:
-  allow_failure: false
-phpcs:
-  allow_failure: false
-phpstan:
-  allow_failure: false
-
 variables:
   _CSPELL_WORDS: 'amazee, litellm'
   # Workaround until we can get ext-pgsql in the container.
   COMPOSER_IGNORE_PLATFORM_REQ: 'ext-pgsql'
+  _ALL_VALIDATE_ALLOW_FAILURE: 0
 
