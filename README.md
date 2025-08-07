@@ -55,8 +55,8 @@ Other regions can be added, just ask!
 3. **Configure the Provider**:
 
    - Navigate to `/admin/config/ai/settings`.
-   - Select "amazee.io" as your AI provider.
-   - Enter your amazee.io API credentials.
+   - Select "amazee.ai" as your AI provider.
+   - Enter your amazee.ai API credentials.
 
 ## Configuration Recipe
 
@@ -74,7 +74,7 @@ For streamlined setup, utilize the [amazee.ai AI Provider Recipe](https://www.dr
    drush recipe:apply amazeeio_ai_provider
    ```
 
-This will automatically configure the necessary settings for the amazee.io AI Provider.
+This will automatically configure the necessary settings for the amazee.ai AI Provider.
 
 ## Usage
 

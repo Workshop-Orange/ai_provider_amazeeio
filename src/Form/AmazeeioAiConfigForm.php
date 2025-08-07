@@ -18,7 +18,7 @@ use GuzzleHttp\Exception\ClientException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Configure Amazee.io AI API access Form.
+ * Configure amazee.ai AI API access Form.
  */
 class AmazeeioAiConfigForm extends ConfigFormBase {
 
@@ -28,12 +28,12 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
   const CONFIG_NAME = 'ai_provider_amazeeio.settings';
 
   /**
-   * The known key name for the Amazee.io API key.
+   * The known key name for the amazee.ai API key.
    */
   const API_KEY_NAME = 'amazeeio_ai';
 
   /**
-   * The known key name for the Amazee.io database password.
+   * The known key name for the amazee.ai database password.
    */
   const VDB_PASSWORD_NAME = 'amazeeio_ai_database';
 
@@ -176,7 +176,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         // is actually able to enter an invalid email address.
         '#type' => $this->testMode() ? 'textfield' : 'email',
         '#title' => $this->t('Email'),
-        '#description' => $this->t('By entering your email address, you agree to amazee.io\'s <a href="https://amazee.ai/terms-and-conditions">Terms of Service.</a>'),
+        '#description' => $this->t('By entering your email address, you agree to amazee.ai\'s <a href="https://amazee.ai/terms-and-conditions">Terms of Service.</a>'),
       ];
       $ajax['submit_email'] = [
         '#type' => 'submit',
@@ -403,7 +403,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
           ->set('api_key', static::API_KEY_NAME)
           ->save();
 
-        // Load or create the Amazee.io key.
+        // Load or create the amazee.ai key.
         /** @var \Drupal\Core\Entity\EntityStorageInterface $key_storage */
         $key_storage = $this->entityTypeManager->getStorage('key');
         /** @var \Drupal\key\Entity\Key $key */
@@ -411,8 +411,8 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
           $key_storage->create(
             [
               'id' => static::API_KEY_NAME,
-              'label' => 'Amazee.io AI API Key',
-              'description' => 'Automatically created by the Amazee.io AI provider.',
+              'label' => 'amazee.ai AI API Key',
+              'description' => 'Automatically created by the amazee.ai AI provider.',
             ]
           );
         // Update the key config.
@@ -422,14 +422,14 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
           ->set('key_input', 'text_field')
           ->save();
 
-        // Load or create the Amazee.io Postgres key.
+        // Load or create the amazee.ai Postgres key.
         /** @var \Drupal\key\Entity\Key $database_key */
         $database_key = $key_storage->load(static::VDB_PASSWORD_NAME) ??
           $key_storage->create(
             [
               'id' => static::VDB_PASSWORD_NAME,
-              'label' => 'Amazee.io AI Database Key',
-              'description' => 'Automatically created by the Amazee.io AI provider.',
+              'label' => 'amazee.ai AI Database Key',
+              'description' => 'Automatically created by the amazee.ai AI provider.',
             ]
           );
         // Update the key config.

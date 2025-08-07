@@ -6,7 +6,7 @@ use Drupal\ai_provider_amazeeio\Form\AmazeeioAiConfigForm;
 use Drupal\Tests\BrowserTestBase;
 
 /**
- * Integration tests for amazee.io AI provider user interfaces.
+ * Integration tests for amazee.ai AI provider user interfaces.
  */
 class AmazeeioProviderTest extends BrowserTestBase {
 

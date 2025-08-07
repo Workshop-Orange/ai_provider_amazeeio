@@ -11,11 +11,11 @@ use Drupal\ai_vdb_provider_postgres\Plugin\VdbProvider\PostgresProvider;
 use PgSql\Connection as PgSql;
 
 /**
- * Plugin implementation of the 'Amazee.io Vector Database' provider.
+ * Plugin implementation of the 'amazee.ai Vector Database' provider.
  */
 #[AiVdbProvider(
     id: 'amazeeio_vector_db',
-    label: new TranslatableMarkup('Amazee.io Vector Database'),
+    label: new TranslatableMarkup('amazee.ai Vector Database'),
 )]
 class AmazeeioVdbProvider extends PostgresProvider {
 

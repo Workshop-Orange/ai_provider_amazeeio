@@ -11,11 +11,11 @@ use GuzzleHttp\Exception\ClientException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Plugin implementation of the 'Amazee.io AI' provider.
+ * Plugin implementation of the 'amazee.ai AI' provider.
  */
 #[AiProvider(
     id: 'amazeeio',
-    label: new TranslatableMarkup('Amazee.io AI'),
+    label: new TranslatableMarkup('amazee.ai AI'),
 )]
 class AmazeeioAiProvider extends OpenAiProvider {
 

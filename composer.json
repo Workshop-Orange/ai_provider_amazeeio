@@ -1,6 +1,6 @@
 {
   "name": "drupal/ai_provider_amazeeio",
-  "description": "Amazee.io AI provider integration.",
+  "description": "amazee.ai AI provider integration.",
   "type": "drupal-module",
   "license": "GPL-2.0-or-later",
   "require": {
