@@ -3,6 +3,7 @@ description: 'This enables the use of amazee.ai AI for the AI module.'
 package: AI Providers
 type: module
 core_version_requirement: ^10.4 || ^11
+configure: ai_provider_amazeeio.settings_form
 
 dependencies:
   - ai:ai
