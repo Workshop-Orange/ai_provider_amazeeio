@@ -8,11 +8,11 @@
 declare(strict_types=1);
 
 /**
- * Install AI Search and the postgres provider..
+ * Install AI Search.
  */
 function ai_provider_amazeeio_update_10001(): void {
   \Drupal::service('module_installer')
-    ->install(['ai_search', 'ai_vdb_provider_postgres']);
+    ->install(['ai_search']);
 }
 
 /**

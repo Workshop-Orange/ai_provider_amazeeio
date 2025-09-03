@@ -7,5 +7,4 @@ configure: ai_provider_amazeeio.settings_form
 
 dependencies:
   - ai:ai
-  - ai_vdb_provider_postgres:ai_vdb_provider_postgres
   - key:key

@@ -6,8 +6,9 @@ use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\ai\Attribute\AiVdbProvider;
-use Drupal\ai_vdb_provider_postgres\Exception\DatabaseNotConfiguredException;
-use Drupal\ai_vdb_provider_postgres\Plugin\VdbProvider\PostgresProvider;
+use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException;
+use Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider\PostgresProvider;
+use Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient;
 use PgSql\Connection as PgSql;
 
 /**
@@ -34,8 +35,8 @@ class AmazeeioVdbProvider extends PostgresProvider {
    * @return \PgSql\Connection|false
    *   A connection to the Postgres instance.
    *
-   * @throws \Drupal\ai_vdb_provider_postgres\Exception\DatabaseConnectionException
-   * @throws \Drupal\ai_vdb_provider_postgres\Exception\DatabaseNotConfiguredException
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
   public function getConnection(?string $database = NULL): PgSql|false {
     $config = $this->getConnectionData();
@@ -70,7 +71,7 @@ class AmazeeioVdbProvider extends PostgresProvider {
    * @return array
    *   The connection data.
    *
-   * @throws \Drupal\ai_vdb_provider_postgres\Exception\DatabaseNotConfiguredException
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
   public function getConnectionData() {
     $config = $this->getConfig();
@@ -108,6 +109,13 @@ class AmazeeioVdbProvider extends PostgresProvider {
       throw new DatabaseNotConfiguredException(message: 'Postgres default_database is not configured');
     }
     return $output;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  public function getClient(): PostgresPgvectorClient {
+    return \Drupal::service('ai_provider_amazeeio.postgres_client');
   }
 
 }
