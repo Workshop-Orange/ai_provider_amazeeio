@@ -32,7 +32,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
 
   use StringTranslationTrait;
   // Use the LoggerChannelTrait instead of dependency injection because parent
-  // __contruct is marked as final.
+  // __construct is marked as final.
   use LoggerChannelTrait;
 
   protected const LOGGER_CHANNEL = 'ai_provider_amazeeio';
