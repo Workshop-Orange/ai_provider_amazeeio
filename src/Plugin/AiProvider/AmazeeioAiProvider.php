@@ -20,7 +20,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
   /**
    * The AmazeeAI API client.
    *
-   * @var \Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient;
+   * @var \Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient
    */
   protected AmazeeClient $amazeeClient;
 
@@ -45,4 +45,5 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
   public function getSupportedOperationTypes(): array {
     return [];
   }
+
 }
