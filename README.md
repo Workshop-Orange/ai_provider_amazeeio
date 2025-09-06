@@ -101,11 +101,12 @@ Once configured, the amazee.ai AI Provider will handle AI operations initiated b
 - **Simplify Text**: Automatically rewrite content for lower reading levels or different cognitive styles.
 - **Custom LLM Deployment**: Use self-hosted or enterprise LLMs (via amazee.ai or another provider) for compliance, data sovereignty, or cost efficiency.
 - **Create Web Form from a sketch**: Take a picture of a drawing you've made of a form, and have AI generate the Web Form for you.
-- **Accessibility Auditing**:  Identify accessibility issues in content (e.g., missing headings, improper link text) using natural language inspection.
+- **Accessibility Auditing**: Identify accessibility issues in content (e.g., missing headings, improper link text) using natural language inspection.
 - **Visual QA Assistant**: Automatically scan designs or layout previews and flag inconsistencies, contrast issues, or spacing problems.
 
-This is just a small sampling of what can be achieved. 
-For more ideas see: 
+This is just a small sampling of what can be achieved.
+For more ideas see:
+
 - **[Workflows of AI](https://workflows-of-ai.com/)**
 - **[Official DrupalAI Module Page](https://www.drupal.org/project/ai)**
 - **[Overview of Drupal AI Modules](https://www.drupal.org/project/artificial_intelligence_initiative/issues/3429343)**
@@ -125,7 +126,5 @@ Contributions, bug reports, and feature requests are welcome.
 
 - **Andrew Belcher**: Initial creator and maintainer.
 - **FreelyGive Development**: Supporting organization.
-
-
 
 ![ ](https://static.scarf.sh/a.png?x-pxid=2e5c5cce-8f26-4eae-9dfb-12573ed08431)

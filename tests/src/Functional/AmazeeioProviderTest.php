@@ -29,7 +29,6 @@ class AmazeeioProviderTest extends BrowserTestBase {
   protected static $modules = [
     'ai',
     'ai_vdb_provider_postgres',
-    'ai_provider_openai',
     'ai_provider_amazeeio',
     'ai_provider_amazeeio_test',
   ];

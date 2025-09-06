@@ -7,7 +7,6 @@ use Drupal\ai\AiProviderPluginManager;
 use Drupal\ai\AiVdbProviderPluginManager;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface;
 use Drupal\Core\Form\ConfigFormBase;
-use Drupal\ai_provider_openai\OpenAiHelper;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\TempStore\PrivateTempStore;
@@ -73,7 +72,6 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
   public function __construct(
     protected AiProviderPluginManager $aiProviderManager,
     protected KeyRepositoryInterface $keyRepository,
-    protected OpenAiHelper $openAiHelper,
     protected Client $client,
     protected ClientInterface $amazeeClient,
     protected PrivateTempStoreFactory $tempStoreFactory,
@@ -93,7 +91,6 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     return new static(
       $container->get('ai.provider'),
       $container->get('key.repository'),
-      $container->get('ai_provider_openai.helper'),
       $container->get('http_client'),
       $container->get('ai_provider_amazeeio.api_client'),
       $container->get('tempstore.private'),
