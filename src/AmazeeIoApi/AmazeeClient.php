@@ -36,6 +36,8 @@ class AmazeeClient implements ClientInterface {
    *   A Guzzle client to use for requests.
    * @param \Drupal\Core\Logger\LoggerChannelFactoryInterface $loggerFactory
    *   A logger factory.
+   * @param string $authToken
+   *   An authentication token for the AmazeeAI API.
    */
   public function __construct(
     protected Client $client,
