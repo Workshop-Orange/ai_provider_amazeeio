@@ -2,6 +2,7 @@
 
 namespace Drupal\ai_provider_amazeeio\AmazeeIoApi;
 
+use Drupal\ai_provider_amazeeio\DTO\Model;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
@@ -13,13 +14,6 @@ use Psr\Http\Message\ResponseInterface;
  * Client for Amazee private key API.
  */
 class AmazeeClient implements ClientInterface {
-
-  /**
-   * The auth token to use for requests.
-   *
-   * @var string
-   */
-  protected string $authToken = '';
 
   /**
    * The host URI to make calls against.
@@ -46,7 +40,10 @@ class AmazeeClient implements ClientInterface {
   public function __construct(
     protected Client $client,
     protected LoggerChannelFactoryInterface $loggerFactory,
+    protected string $authToken,
   ) {
+    $config = \Drupal::config('ai_provider_amazeeio.settings');
+    $this->host = $config->get('host');
   }
 
   /**
@@ -76,11 +73,11 @@ class AmazeeClient implements ClientInterface {
   public function login(string $username, string $password): string {
     try {
       $response = $this->makeRequest(
-            'POST', '/auth/login', [
-              'username' => $username,
-              'password' => $password,
-            ]
-        );
+        'POST', '/auth/login', [
+          'username' => $username,
+          'password' => $password,
+        ],
+      );
     }
     catch (ClientException | GuzzleException | \Exception $e) {
       $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to login to amazee.ai: @error', ['@error' => $e->getMessage()]);
@@ -203,6 +200,24 @@ class AmazeeClient implements ClientInterface {
   }
 
   /**
+   * Get available models.
+   *
+   * @return \stdClass[]
+   *   The available models.
+   */
+  public function models(): array {
+    $response = $this->makeRequest('GET', '/model/info');
+    $decoded_response = json_decode($response->getBody());
+
+    $models = [];
+    foreach ($decoded_response->data as $model_info) {
+      $models[$model_info->model_name] = Model::createFromResponse($model_info);
+    }
+
+    return $models;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function createPrivateAiKey(string $region_id, string $name, ?int $team_id = NULL): array {
@@ -319,13 +334,13 @@ class AmazeeClient implements ClientInterface {
               'body' => $body,
             ]
         ),
-            'POST' => $this->client->post(
+      'POST' => $this->client->post(
             $this->host . $endpoint, [
               'headers' => $headers,
               'body' => $body,
             ]
         ),
-            default => throw new \InvalidArgumentException('Only GET and POST request types are supported.'),
+      default => throw new \InvalidArgumentException('Only GET and POST request types are supported.'),
     };
   }
 
