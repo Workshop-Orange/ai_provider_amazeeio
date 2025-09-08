@@ -14,7 +14,6 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\GetCollectionsException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\InsertIntoCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\QuerySearchException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException;
-use PgSql;
 use PgSql\Connection;
 
 /**
@@ -36,7 +35,7 @@ class PostgresPgvectorClient {
   /**
    * Get the Postgres database connection.
    *
-   * @return PgSql\Connection|FALSE
+   * @return \PgSql\Connection|false
    *   A connection to the Postgres database.
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
@@ -47,7 +46,7 @@ class PostgresPgvectorClient {
     string $username,
     string $password,
     string $default_database,
-    ?string $database = NULL
+    ?string $database = NULL,
   ): Connection|FALSE {
     if (!isset($database)) {
       $database = $default_database;
@@ -101,8 +100,8 @@ class PostgresPgvectorClient {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\CreateCollectionException
    */
   public function createCollection(
-    string     $collection_name,
-    int        $dimension,
+    string $collection_name,
+    int $dimension,
     Connection $connection,
   ): void {
     $escaped_collection_name = $this->escapeIdentifierForSql(
@@ -124,7 +123,7 @@ class PostgresPgvectorClient {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DropCollectionException
    */
   public function dropCollection(
-    string     $collection_name,
+    string $collection_name,
     Connection $connection,
   ): void {
     $escaped_collection_name = $this->escapeIdentifierForSql(
@@ -147,15 +146,15 @@ class PostgresPgvectorClient {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\InsertIntoCollectionException
    */
   public function insertIntoCollection(
-    string     $collection_name,
-    array     $drupal_entity_id,
-    array     $drupal_long_id,
-    array     $content,
-    array      $vector,
-    array      $server_id,
-    array       $index_id,
-    array      $extra_fields,
-    Connection $connection
+    string $collection_name,
+    array $drupal_entity_id,
+    array $drupal_long_id,
+    array $content,
+    array $vector,
+    array $server_id,
+    array $index_id,
+    array $extra_fields,
+    Connection $connection,
   ): void {
     $vector_string = $this->prepareVectorArrayForSql(
       vector: $vector['value'],
@@ -178,7 +177,8 @@ class PostgresPgvectorClient {
         if ($relation_query = $this->prepareRelationQuery($collection_name, $field_name, $field_data, $connection)) {
           $relation_queries[] = $relation_query;
         }
-      } else {
+      }
+      else {
         $extra_fields_columns .= ", {$field_name}";
         $extra_fields_values .= ", \${$param_index}";
         $extra_fields_params[] = $field_data['value'];
@@ -221,8 +221,8 @@ class PostgresPgvectorClient {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
    */
   public function deleteFromCollection(
-    string     $collection_name,
-    array      $ids,
+    string $collection_name,
+    array $ids,
     Connection $connection,
   ): void {
     if (empty($ids)) {
@@ -249,11 +249,11 @@ class PostgresPgvectorClient {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\QuerySearchException
    */
   public function querySearch(
-    string     $collection_name,
-    array      $output_fields,
-    string     $filters,
-    int        $limit,
-    int        $offset,
+    string $collection_name,
+    array $output_fields,
+    string $filters,
+    int $limit,
+    int $offset,
     Connection $connection,
   ): array {
     $escaped_collection_name = $this->escapeIdentifierForSql(
@@ -281,14 +281,14 @@ class PostgresPgvectorClient {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException
    */
   public function vectorSearch(
-    string               $collection_name,
-    array                $vector_input,
-    array                $output_fields,
-    string               $filters,
-    int                  $limit,
-    int                  $offset,
+    string $collection_name,
+    array $vector_input,
+    array $output_fields,
+    string $filters,
+    int $limit,
+    int $offset,
     VdbSimilarityMetrics $metric_type,
-    Connection           $connection
+    Connection $connection,
   ): array {
     $metric_name = match ($metric_type) {
       VdbSimilarityMetrics::EuclideanDistance => '<->',
@@ -334,13 +334,12 @@ class PostgresPgvectorClient {
     return pg_fetch_all(result: $result);
   }
 
-
   /**
    * Transform an array of field identifier strings for use in a SQL statement.
    *
    * @param array $fields
    *   Field array.
-   * @param Connection $connection
+   * @param \PgSql\Connection $connection
    *   The Postgres connection.
    *
    * @return string
@@ -376,7 +375,7 @@ class PostgresPgvectorClient {
    * @param array $vector
    *   Vector array.
    *   Normally an array of floats.
-   * @param Connection $connection
+   * @param \PgSql\Connection $connection
    *   The Postgres connection.
    *
    * @return string
@@ -409,7 +408,7 @@ class PostgresPgvectorClient {
    *
    * @param array $items
    *   An array of string items.
-   * @param Connection $connection
+   * @param \PgSql\Connection $connection
    *   The Postgres connection.
    *
    * @return string
@@ -431,7 +430,7 @@ class PostgresPgvectorClient {
    *
    * @param string $string_to_escape
    *   The string to escape.
-   * @param Connection $connection
+   * @param \PgSql\Connection $connection
    *   The Postgres connection.
    *
    * @return string
@@ -452,7 +451,7 @@ class PostgresPgvectorClient {
    *
    * @param string $identifier_to_escape
    *   The string identifier to escape.
-   * @param Connection $connection
+   * @param \PgSql\Connection $connection
    *   The Postgres connection.
    *
    * @return string
@@ -514,8 +513,7 @@ class PostgresPgvectorClient {
     $postgres_type = self::DATA_TYPE_MAPPING[$data_type];
     $escaped_field_name = $this->escapeIdentifierForSql($name, $connection);
 
-
-    // If isMultiple is true, create a new relationship table
+    // If isMultiple is true, create a new relationship table.
     if ($isMultiple) {
       $relation_table = $this->getRelationTableName($collection_name, $name, $connection);
       $create_relation_table = "CREATE TABLE IF NOT EXISTS {$relation_table} (id SERIAL PRIMARY KEY, value {$postgres_type} NOT NULL, chunk_id INT NOT NULL, FOREIGN KEY(chunk_id) REFERENCES {$escaped_collection_name}(id) ON DELETE CASCADE);";
@@ -523,7 +521,8 @@ class PostgresPgvectorClient {
       if (!$result) {
         throw new AddFieldIfNotExistsException(message: pg_last_error(connection: $connection));
       }
-    } else {
+    }
+    else {
       $query = "ALTER TABLE {$escaped_collection_name} ADD COLUMN IF NOT EXISTS {$escaped_field_name} {$postgres_type};";
       $result = pg_query(connection: $connection, query: $query);
       if (!$result) {
@@ -567,10 +566,14 @@ class PostgresPgvectorClient {
     return $query;
   }
 
+  /**
+   *
+   */
   public function getRelationTableName($collection_name, $field_name, $connection): string {
     return $this->escapeIdentifierForSql(
       identifier_to_escape: "{$collection_name}__{$field_name}",
       connection: $connection,
     );
   }
+
 }

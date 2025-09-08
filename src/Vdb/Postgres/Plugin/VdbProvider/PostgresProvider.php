@@ -2,6 +2,7 @@
 
 namespace Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider;
 
+use PgSql\Connection;
 use Drupal\ai\Attribute\AiVdbProvider;
 use Drupal\ai\Base\AiVdbProviderClientBase;
 use Drupal\ai\Enum\VdbSimilarityMetrics;
@@ -19,7 +20,6 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredExce
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DeleteFromCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DropCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient;
-use PgSql;
 
 /**
  * Plugin implementation of the 'Postgres vector DB' provider.
@@ -58,13 +58,13 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    *
    * This connection is used interface with the Postgres client.
    *
-   * @return PgSql\Connection|FALSE
+   * @return \PgSql\Connection|false
    *   A connection to the Postgres instance.
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
-  public function getConnection(?string $database = NULL): PgSql\Connection|false {
+  public function getConnection(?string $database = NULL): Connection|false {
     $config = $this->getConnectionData();
     return $this->getClient()->getConnection(
       host: $config['postgres_host'],
@@ -165,10 +165,10 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\CreateCollectionException
    */
   public function createCollection(
-    string               $collection_name,
-    int                  $dimension,
+    string $collection_name,
+    int $dimension,
     VdbSimilarityMetrics $metric_type = VdbSimilarityMetrics::CosineSimilarity,
-    ?string              $database = NULL,
+    ?string $database = NULL,
   ): void {
     try {
       $this->getClient()->createCollection(
@@ -223,7 +223,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    */
   public function insertIntoCollection(
     string $collection_name,
-    array  $data,
+    array $data,
     ?string $database = NULL,
   ): void {
     $nativeFieldValues = array_intersect_key($data, array_flip(self::AI_SEARCH_NATIVE_FIELDS));
@@ -250,7 +250,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    */
   public function deleteFromCollection(
     string $collection_name,
-    array  $ids,
+    array $ids,
     ?string $database = NULL,
   ): void {
     if (empty($ids)) {
@@ -301,10 +301,10 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    */
   public function querySearch(
     string $collection_name,
-    array  $output_fields,
+    array $output_fields,
     string $filters = '',
-    int    $limit = 10,
-    int    $offset = 0,
+    int $limit = 10,
+    int $offset = 0,
     ?string $database = NULL,
   ): array {
     return $this->getClient()->querySearch(
@@ -323,17 +323,17 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    * * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
    * * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    * * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
-   * * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException
+   * * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException.
    */
   public function vectorSearch(
-    string               $collection_name,
-    array                $vector_input,
-    array                $output_fields,
-    QueryInterface       $query,
-    string               $filters = '',
-    int                  $limit = 10,
-    int                  $offset = 0,
-    ?string              $database = NULL,
+    string $collection_name,
+    array $vector_input,
+    array $output_fields,
+    QueryInterface $query,
+    string $filters = '',
+    int $limit = 10,
+    int $offset = 0,
+    ?string $database = NULL,
   ): array {
     $metric_type = VdbSimilarityMetrics::from(
       $query->getIndex()->getServerInstance()->getBackendConfig()['database_settings']['metric']
@@ -360,7 +360,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    */
   public function getVdbIds(
     string $collection_name,
-    array  $drupalIds,
+    array $drupalIds,
     ?string $database = NULL,
   ): array {
     if (empty($drupalIds)) {
@@ -464,7 +464,6 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
         $escapedCollection = $this->getClient()->escapeIdentifierForSql($collection, $connection);
         $join = "LEFT JOIN $fieldIdentifier ON $escapedCollection.id = $fieldIdentifier.chunk_id";
 
-
         if ($condition->getOperator() === '=') {
           $filters[] = "$fieldIdentifier.value @> $normalizedValues";
           $joins[] = $join;
@@ -558,4 +557,5 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     }
     return $successfulItemIds;
   }
+
 }
