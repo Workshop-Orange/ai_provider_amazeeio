@@ -69,6 +69,13 @@ class AmazeeClient implements ClientInterface {
   /**
    * {@inheritdoc}
    */
+  public function getHost(): string {
+    return $this->host;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function getTeamId(): int {
     return $this->teamId;
   }

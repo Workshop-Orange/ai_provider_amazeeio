@@ -45,6 +45,13 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
         $this->loggerFactory,
       );
       $this->amazeeClient->setToken($authToken);
+
+      if (!$this->apiKey) {
+        $this->setAuthentication($authToken);
+      }
+      $host = $this->amazeeClient->getHost();
+      $this->setEndpoint($host);
+      $this->client = $this->createClient();
     }
     catch (AiSetupFailureException $e) {
       throw new AiSetupFailureException('Failed to initialize amazee.ai client: ' . $e->getMessage(), $e->getCode(), $e);
