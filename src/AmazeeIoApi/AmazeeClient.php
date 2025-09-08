@@ -16,6 +16,13 @@ use Psr\Http\Message\ResponseInterface;
 class AmazeeClient implements ClientInterface {
 
   /**
+   * The auth token to use for requests.
+   *
+   * @var string
+   */
+  protected string $authToken = '';
+
+  /**
    * The host URI to make calls against.
    *
    * @var string
@@ -36,13 +43,10 @@ class AmazeeClient implements ClientInterface {
    *   A Guzzle client to use for requests.
    * @param \Drupal\Core\Logger\LoggerChannelFactoryInterface $loggerFactory
    *   A logger factory.
-   * @param string $authToken
-   *   An authentication token for the AmazeeAI API.
    */
   public function __construct(
     protected Client $client,
     protected LoggerChannelFactoryInterface $loggerFactory,
-    protected string $authToken,
   ) {
     $config = \Drupal::config('ai_provider_amazeeio.settings');
     $this->host = $config->get('host');
