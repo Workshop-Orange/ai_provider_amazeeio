@@ -22,11 +22,11 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DropCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient;
 
 /**
- * Plugin implementation of the 'Postgres vector DB' provider.
+ * Plugin implementation of the 'Postgres amazee.ai vector DB' provider.
  */
 #[AiVdbProvider(
-  id: 'postgres',
-  label: new TranslatableMarkup(string: 'Postgres vector DB'),
+  id: 'postgres-amazeeai',
+  label: new TranslatableMarkup(string: 'Postgres amazee.ai vector DB'),
 )]
 class PostgresProvider extends AiVdbProviderClientBase implements ContainerFactoryPluginInterface {
 
