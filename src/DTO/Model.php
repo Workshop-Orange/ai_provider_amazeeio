@@ -5,7 +5,67 @@ namespace Drupal\ai_provider_amazeeio\DTO;
 /**
  * A AmazeeAI Model with information about which features are supported.
  */
-final readonly class Model {
+final class Model {
+  /**
+   * The name of the model.
+   *
+   * @var string
+   */
+  public string $name;
+  /**
+   * Whether the model supports image input.
+   *
+   * @var bool
+   */
+  public bool $supportsImageInput;
+  /**
+   * Whether the model supports image output.
+   *
+   * @var bool
+   */
+  public bool $supportsImageOutput;
+  /**
+   * Whether the model supports audio input.
+   *
+   * @var bool
+   */
+  public bool $supportsAudioInput;
+  /**
+   * Whether the model supports audio output.
+   *
+   * @var bool
+   */
+  public bool $supportsAudioOutput;
+  /**
+   * Whether the model supports video output.
+   *
+   * @var bool
+   */
+  public bool $supportsVideoOutput;
+  /**
+   * Whether the model supports embeddings.
+   *
+   * @var bool
+   */
+  public bool $supportsEmbeddings;
+  /**
+   * Whether the model supports chat.
+   *
+   * @var bool
+   */
+  public bool $supportsChat;
+  /**
+   * Whether the model supports moderation.
+   *
+   * @var bool
+   */
+  public bool $supportsModeration;
+  /**
+   * The OpenAI compatible params supported by this model.
+   *
+   * @var string[]
+   */
+  public array $supportedOpenAiParams;
 
   /**
    * Whether the model supports image and audio to video.
@@ -39,17 +99,27 @@ final readonly class Model {
    *   The OpenAI compatible params supported by this model.
    */
   public function __construct(
-    public string $name,
-    public bool $supportsImageInput,
-    public bool $supportsImageOutput,
-    public bool $supportsAudioInput,
-    public bool $supportsAudioOutput,
-    public bool $supportsVideoOutput,
-    public bool $supportsEmbeddings,
-    public bool $supportsChat,
-    public bool $supportsModeration,
-    public array $supportedOpenAiParams,
+    string $name,
+    bool $supportsImageInput,
+    bool $supportsImageOutput,
+    bool $supportsAudioInput,
+    bool $supportsAudioOutput,
+    bool $supportsVideoOutput,
+    bool $supportsEmbeddings,
+    bool $supportsChat,
+    bool $supportsModeration,
+    array $supportedOpenAiParams,
   ) {
+    $this->name = $name;
+    $this->supportsImageInput = $supportsImageInput;
+    $this->supportsImageOutput = $supportsImageOutput;
+    $this->supportsAudioInput = $supportsAudioInput;
+    $this->supportsAudioOutput = $supportsAudioOutput;
+    $this->supportsVideoOutput = $supportsVideoOutput;
+    $this->supportsEmbeddings = $supportsEmbeddings;
+    $this->supportsChat = $supportsChat;
+    $this->supportsModeration = $supportsModeration;
+    $this->supportedOpenAiParams = $supportedOpenAiParams;
     $this->supportsImageAndAudioToVideo = $supportsImageInput && $this->supportsAudioInput && $this->supportsVideoOutput;
   }
 

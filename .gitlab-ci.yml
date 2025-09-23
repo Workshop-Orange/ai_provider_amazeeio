@@ -18,7 +18,7 @@ include:
       - '/includes/include.drupalci.workflows.yml'
 
 variables:
-  _CSPELL_WORDS: 'amazee, litellm, amazeeio, currval, pgvector, schemaname'
+  _CSPELL_WORDS: 'amazee, amazeeai, amazeeio, litellm, currval, pgvector, schemaname, flac'
   # Workaround until we can get ext-pgsql in the container.
   COMPOSER_IGNORE_PLATFORM_REQ: 'ext-pgsql'
   _ALL_VALIDATE_ALLOW_FAILURE: 0

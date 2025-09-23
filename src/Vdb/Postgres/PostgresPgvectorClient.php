@@ -341,6 +341,8 @@ class PostgresPgvectorClient {
    *   Field array.
    * @param \PgSql\Connection $connection
    *   The Postgres connection.
+   * @param string $collection_name
+   *   The name of the collection.
    *
    * @return string
    *   Array formatted as a field string.
@@ -531,6 +533,9 @@ class PostgresPgvectorClient {
     }
   }
 
+  /**
+   * {@inheritdoc}
+   */
   protected function prepareRelationQuery($collection_name, $field_name, $field_data, $connection) {
     $query = '';
     $escaped_collection_name_id_sequence = $this->escapeIdentifierForSql(
@@ -567,7 +572,7 @@ class PostgresPgvectorClient {
   }
 
   /**
-   *
+   * {@inheritdoc}
    */
   public function getRelationTableName($collection_name, $field_name, $connection): string {
     return $this->escapeIdentifierForSql(
