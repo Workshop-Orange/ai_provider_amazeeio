@@ -39,7 +39,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
   /**
    * The default Postgres port.
    */
-  const POSTGRES_PORT_DEFAULT = '5432';
+  const POSTGRES_PORT_DEFAULT = 5432;
 
   /**
    * Not connected to amazee.ai.
@@ -80,7 +80,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     protected ModuleHandlerInterface $moduleHandler,
   ) {
     $config = $this->config(static::CONFIG_NAME);
-    $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
+    $this->amazeeClient->setHost($config->get('host') ?? '');
     $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
   }
 
@@ -379,7 +379,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     if ($form_state->get('state') === static::STATE_VERIFIED) {
       $config = $this->config(static::CONFIG_NAME);
       $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
-      $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
+      $this->amazeeClient->setHost($config->get('host') ?? '');
       $key_name = static::generatePrivateKeyName();
       $api_keys = array_filter(
         $this->amazeeClient->getPrivateApiKeys(),

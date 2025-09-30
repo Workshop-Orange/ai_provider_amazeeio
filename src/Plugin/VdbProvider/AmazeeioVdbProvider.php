@@ -102,7 +102,7 @@ class AmazeeioVdbProvider extends PostgresProvider {
 
     $output['port'] = $this->configuration['port'] ?? $config->get(key: 'postgres_port');
     if (!$output['port']) {
-      $output['port'] = '5432';
+      $output['port'] = 5432;
     }
     $output['default_database'] = $this->configuration['default_database'] ?? $config->get(key: 'postgres_default_database');
     if (!$output['default_database']) {

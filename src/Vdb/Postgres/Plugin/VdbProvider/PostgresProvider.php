@@ -112,7 +112,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
 
     $output['postgres_port'] = $this->configuration['postgres_port'] ?? $config->get(key: 'postgres_port');
     if (!$output['postgres_port']) {
-      $output['postgres_port'] = '5432';
+      $output['postgres_port'] = 5432;
     }
     $output['postgres_default_database'] = $this->configuration['postgres_default_database'] ?? $config->get(key: 'postgres_default_database');
     if (!$output['postgres_default_database']) {
