@@ -26,10 +26,10 @@ function ai_provider_amazeeio_search_api_index_update(IndexInterface $index): vo
   if (!isset($backend_config['database'])) {
     return;
   }
-  if ($backend_config['database'] !== 'postgres-amazeeai') {
+  if ($backend_config['database'] !== 'amazeeio_vector_db') {
     return;
   }
-  $ai_vdb_provider_postgres = \Drupal::service('ai.vdb_provider')->createInstance('postgres-amazeeai');
+  $ai_vdb_provider_postgres = \Drupal::service('ai.vdb_provider')->createInstance('amazeeio_vector_db');
   $connection = $ai_vdb_provider_postgres->getConnection($backend_config['database_settings']['database_name']);
   \Drupal::service('ai_provider_amazeeio.postgres_client')->updateFields(
     $index->getFields(),

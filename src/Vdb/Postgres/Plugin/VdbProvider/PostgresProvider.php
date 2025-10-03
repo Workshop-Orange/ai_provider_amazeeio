@@ -3,7 +3,6 @@
 namespace Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider;
 
 use PgSql\Connection;
-use Drupal\ai\Attribute\AiVdbProvider;
 use Drupal\ai\Base\AiVdbProviderClientBase;
 use Drupal\ai\Enum\VdbSimilarityMetrics;
 use Drupal\ai_search\EmbeddingStrategyInterface;
@@ -11,7 +10,6 @@ use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Logger\LoggerChannelTrait;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\search_api\IndexInterface;
 use Drupal\search_api\Query\ConditionGroupInterface;
 use Drupal\search_api\Query\QueryInterface;
@@ -22,12 +20,8 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DropCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient;
 
 /**
- * Plugin implementation of the 'Postgres amazee.ai vector DB' provider.
+ * Base Plugin implementation of the 'Postgres amazee.ai vector DB' provider.
  */
-#[AiVdbProvider(
-  id: 'postgres-amazeeai',
-  label: new TranslatableMarkup(string: 'Postgres amazee.ai vector DB'),
-)]
 class PostgresProvider extends AiVdbProviderClientBase implements ContainerFactoryPluginInterface {
 
   use StringTranslationTrait;
@@ -544,7 +538,8 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
             $data[$key] = ['value' => $value, 'is_multiple' => FALSE];
             continue;
           }
-          $data[$key] = ['value' => $value, 'is_multiple' => FALSE];
+          $isMultiple = isset($fields[$key]) ? $this->isMultiple($fields[$key]) : FALSE;
+          $data[$key] = ['value' => $value, 'is_multiple' => $isMultiple];
         }
         $this->insertIntoCollection(
           collection_name: $configuration['database_settings']['collection'],
