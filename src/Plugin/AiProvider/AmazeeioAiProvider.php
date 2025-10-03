@@ -159,6 +159,10 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
   public function getSupportedOperationTypes(): array {
     return [
       'chat',
+      'chat_with_complex_json',
+      'chat_with_image_vision',
+      'chat_with_structured_response',
+      'chat_with_tools',
       'embeddings',
     ];
   }
