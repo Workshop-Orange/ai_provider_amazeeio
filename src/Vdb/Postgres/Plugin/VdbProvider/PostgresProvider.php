@@ -2,6 +2,7 @@
 
 namespace Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider;
 
+use Drupal\Component\Plugin\DependentPluginInterface;
 use PgSql\Connection;
 use Drupal\ai\Base\AiVdbProviderClientBase;
 use Drupal\ai\Enum\VdbSimilarityMetrics;
@@ -22,7 +23,7 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient;
 /**
  * Base Plugin implementation of the 'Postgres amazee.ai vector DB' provider.
  */
-class PostgresProvider extends AiVdbProviderClientBase implements ContainerFactoryPluginInterface {
+class PostgresProvider extends AiVdbProviderClientBase implements ContainerFactoryPluginInterface, DependentPluginInterface {
 
   use StringTranslationTrait;
   // Use the LoggerChannelTrait instead of dependency injection because parent
@@ -551,6 +552,17 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
       $successfulItemIds[] = $item->getId();
     }
     return $successfulItemIds;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function calculateDependencies() {
+    return [
+      'config' => [
+        'ai_provider_amazeeio.settings',
+      ],
+    ];
   }
 
 }
