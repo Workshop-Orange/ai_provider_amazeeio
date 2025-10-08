@@ -266,6 +266,8 @@ class AmazeeClient implements ClientInterface {
    */
   public function getPrivateApiKeys(): array {
     try {
+      // Ensure host is set to main api endpoint
+      $this->setHost('https://api.amazee.ai');
       $response = $this->makeRequest('GET', '/private-ai-keys');
     }
     catch (ClientException | GuzzleException | \Exception $e) {
