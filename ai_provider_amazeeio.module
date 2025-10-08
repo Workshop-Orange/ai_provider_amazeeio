@@ -56,7 +56,13 @@ function ai_provider_amazeeio_user_login(UserInterface $account): void {
   _ai_provider_amazeeio_amazee_logout();
 
   // Trigger (flag) the redirect to the settings page, if needed.
-  _ai_provider_amazeeio_redirect_to_settings_page();
+  $configFactory = \Drupal::configFactory();
+  // Only run this if config ai_provider_amazeeio.settings.redirect_on_login is
+  // TRUE.
+  $config = $configFactory->get('ai_provider_amazeeio.settings');
+  if ($config->get('redirect_on_login')) {
+    _ai_provider_amazeeio_redirect_to_settings_page();
+  }
 }
 
 /**
@@ -74,12 +80,7 @@ function ai_provider_amazeeio_user_login(UserInterface $account): void {
  */
 function _ai_provider_amazeeio_redirect_to_settings_page(): void {
   $configFactory = \Drupal::configFactory();
-  // Only run this if config ai_provider_amazeeio.settings.redirect_on_login is
-  // TRUE.
   $config = $configFactory->get('ai_provider_amazeeio.settings');
-  if (!$config->get('redirect_on_login')) {
-    return;
-  }
 
   $currentUser = \Drupal::currentUser();
   if ($currentUser->hasPermission('administer ai providers')) {

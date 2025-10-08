@@ -6,4 +6,3 @@ postgres_port: 5432
 postgres_default_database: ''
 postgres_username: ''
 postgres_password: ''
-redirect_on_login: FALSE
