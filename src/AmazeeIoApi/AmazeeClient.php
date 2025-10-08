@@ -341,19 +341,19 @@ class AmazeeClient implements ClientInterface {
     $body = $body ? json_encode($body) : NULL;
 
     return match ($type) {
-      'GET' => $this->client->get(
+        'GET' => $this->client->get(
             $this->host . $endpoint, [
               'headers' => $headers,
               'body' => $body,
             ]
         ),
-      'POST' => $this->client->post(
+        'POST' => $this->client->post(
             $this->host . $endpoint, [
               'headers' => $headers,
               'body' => $body,
             ]
         ),
-      default => throw new \InvalidArgumentException('Only GET and POST request types are supported.'),
+        default => throw new \InvalidArgumentException('Only GET and POST request types are supported.'),
     };
   }
 

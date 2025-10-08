@@ -8,6 +8,9 @@ ai_provider_amazeeio.settings:
     moderation:
       type: boolean
       label: 'Enable moderation requests before each request.'
+    amazee_host:
+      type: string
+      label: 'The host to use for the API request.'
     host:
       type: string
       label: 'The host to use for the API requests.'

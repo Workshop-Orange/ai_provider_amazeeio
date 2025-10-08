@@ -80,7 +80,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     protected ModuleHandlerInterface $moduleHandler,
   ) {
     $config = $this->config(static::CONFIG_NAME);
-    $this->amazeeClient->setHost($config->get('host') ?? '');
+    $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
     $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
   }
 

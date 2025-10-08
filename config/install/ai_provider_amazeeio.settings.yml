@@ -1,4 +1,5 @@
 api_key: 'amazeeio_ai'
+amazee_host: 'https://api.amazee.ai'
 host: 'https://api.amazee.ai'
 moderation: FALSE
 postgres_host: ''
