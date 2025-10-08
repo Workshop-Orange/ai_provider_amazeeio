@@ -26,3 +26,6 @@ ai_provider_amazeeio.settings:
     postgres_password:
       type: string
       label: 'The password to use for the Postgres database, loaded via Key module.'
+    redirect_on_login:
+      type: boolean
+      label: 'Redirect to the amazee.ai AI settings page after login, if there is no API key.'

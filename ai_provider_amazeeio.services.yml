@@ -4,8 +4,3 @@ services:
     arguments: ['@http_client', '@logger.factory']
   ai_provider_amazeeio.postgres_client:
     class: Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient
-  ai_provider_amazeeio.login_redirect_subscriber:
-    class: Drupal\ai_provider_amazeeio\EventSubscriber\LoginRedirectSubscriber
-    arguments: ['@current_user', '@config.factory', '@current_route_match', '@module_handler']
-    tags:
-      - { name: event_subscriber }
