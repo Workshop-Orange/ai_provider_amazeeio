@@ -206,9 +206,28 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       catch (ClientException $e) {
         $this->messenger->addError($this->t('An error occurred while retrieving the available regions. Please consult the Drupal error log.'));
       }
-      $ajax['markup'] = [
-        '#markup' => '<p><em>' . $this->t('Choose where your AI features will be hosted.') . '</em></p>',
-      ];
+
+      // Check if we already have a key
+      $key_name = static::generatePrivateKeyName();
+      $api_keys = array_filter(
+        $this->amazeeClient->getPrivateApiKeys(),
+        fn($key) => $key->name === $key_name
+      );
+      $api_key = reset($api_keys);
+      if ($api_key) {
+        $regions = [
+          $api_key->region
+        ];
+
+        $ajax['markup'] = [
+          '#markup' => '<p><em>' . $this->t('We found an existing key for this host (@host) with the following region.', ['@host' => static::generatePrivateKeyName()]) . '</em></p>',
+        ];
+      } else {
+        $ajax['markup'] = [
+          '#markup' => '<p><em>' . $this->t('Choose where your AI features will be hosted.') . '</em></p>',
+        ];
+      }
+
       $ajax['region'] = [
         '#type' => 'select',
         '#title' => $this->t('Region'),
