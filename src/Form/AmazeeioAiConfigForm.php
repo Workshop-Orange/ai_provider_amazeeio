@@ -286,7 +286,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       ];
 
       $host = $config->get('host');
-      if (!(empty($host) || !$this->keyRepository->getKey(static::API_KEY_NAME)->getKeyValue())) {
+      if (!(empty($host) || !$this->getKeyValue(static::API_KEY_NAME))) {
         $ajax['usage'] = [
           '#theme' => 'table',
           '#rows' => [],
