@@ -101,6 +101,20 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
   }
 
   /**
+   * A helper function to get a key value from the key repository.
+   *
+   * @param string $key_name
+   *   The name of the key to retrieve.
+   *
+   * @return string|null
+   *   The key value, or NULL if the key is not found.
+   */
+  private function getKeyValue(string $key_name): ?string {
+    $key = $this->keyRepository->getKey($key_name);
+    return $key ? $key->getKeyValue() : NULL;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function getFormId(): string {
@@ -121,12 +135,22 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    * status.
    */
   public function currentState(FormStateInterface $form_state): string {
-    return $form_state->get('state')
-      ? $form_state->get('state')
-      : ($this->amazeeClient->authorized()
-        ? static::STATE_CONNECTED
-        : static::STATE_DISCONNECTED
-      );
+    if ($state = $form_state->get('state')) {
+      return $state;
+    }
+
+    if ($this->amazeeClient->authorized()) {
+      return static::STATE_CONNECTED;
+    }
+
+    // Check if we have LLM key and VDB already setup.
+    /** @var \Drupal\Core\Entity\EntityStorageInterface $key_storage */
+    $key_storage = $this->entityTypeManager->getStorage('key');
+    if ($key_storage->load(static::API_KEY_NAME) && $key_storage->load(static::VDB_PASSWORD_NAME)) {
+      return static::STATE_CONNECTED;
+    }
+
+    return static::STATE_DISCONNECTED;
   }
 
   /**
@@ -141,11 +165,8 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $config = $this->config(static::CONFIG_NAME);
-    $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
 
-    if ($auth_token = $this->getTempStore()->get('access_token')) {
-      $this->amazeeClient->setToken($auth_token);
-    }
+    $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
 
     $buttonAjax = [
       'callback' => '::ajaxUpdate',
@@ -164,6 +185,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       '#prefix' => '<div id="amazee-ai-config-form">',
       '#suffix' => '</div>',
     ];
+
     if ($state === static::STATE_DISCONNECTED) {
       $ajax['markup'] = [
         '#markup' => '<p><em>' . $this->t("Let's get you started! Enter your email address and we'll send you a code to sign in to <strong>amazee.ai</strong>.") . '</em></p>',
@@ -244,6 +266,19 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     }
 
     if ($state === static::STATE_CONNECTED) {
+      // Check if we're using a Trial Account
+      $trial_account = \Drupal::state()->get('ai_provider_amazeeio.trial_account');
+
+      if ($trial_account) {
+        $ajax['trial_account_message'] = [
+          '#markup' => '<p>' .
+              $this->t('You are currently using a free anonymous trial account.') . ' ' .
+              $this->t('This account has a very limited budget.') . ' ' .
+              $this->t('You may want to disconnect and connect with a full user account.') .
+            '</p>',
+        ];
+      }
+
       $ajax['submit_disconnect'] = [
         '#type' => 'submit',
         '#value' => $this->t('Disconnect'),
@@ -279,9 +314,10 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         }
       }
     }
+
     if ($state === static::STATE_CONFIRM_DISCONNECT) {
       $ajax['markup'] = [
-        '#markup' => '<p><em>' . $this->t('Are you sure you want to disconnect from <strong>amazee.ai</string>?') . '</em></p>',
+        '#markup' => '<p><em>' . $this->t('Are you sure you want to disconnect from <strong>amazee.ai</strong>?') . '</em></p>',
       ];
       $ajax['submit_confirm_disconnect'] = [
         '#type' => 'submit',
@@ -295,6 +331,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         '#attributes' => ['class' => ['button', 'button--secondary']],
       ];
     }
+
     $form['ajax'] = $ajax;
 
     return $form;
@@ -324,6 +361,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         $form_state->setErrorByName('email', $this->t('Invalid email address.'));
       }
     }
+
     if ($state === static::STATE_VERIFICATION) {
       $email = $form_state->get('email');
       $code = $form_state->getValue('code');
@@ -336,6 +374,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         $form_state->setErrorByName('code', $this->t('The provided code is incorrect or has expired.'));
       }
     }
+
     if ($state === static::STATE_VERIFIED) {
       $region = $form_state->getValue('region');
       $key_name = static::generatePrivateKeyName();
@@ -362,12 +401,14 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         }
       }
     }
+
     if ($state === static::STATE_CONNECTED) {
       $element = $form_state->getTriggeringElement();
       if ($element['#id'] === 'edit-submit-disconnect') {
         $form_state->set('state', static::STATE_CONFIRM_DISCONNECT);
       }
     }
+
     if ($state === static::STATE_CONFIRM_DISCONNECT) {
       $element = $form_state->getTriggeringElement();
       if ($element['#id'] === 'edit-submit-confirm-disconnect') {
@@ -379,6 +420,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         $form_state->set('state', static::STATE_CONNECTED);
       }
     }
+
     $form_state->setRebuild();
   }
 
@@ -466,8 +508,8 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         $this->messenger()->addStatus($this->t('This website has been connected to <strong>amazee.ai</strong>.'));
       }
     }
+
     if ($form_state->get('state') === static::STATE_CONFIRM_DISCONNECT) {
-      $this->getTempStore()->delete('access_token');
       $this->config(static::CONFIG_NAME)
         ->set('host', '')
         ->set('postgres_host', '')
@@ -477,16 +519,25 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         ->set('postgres_password', static::VDB_PASSWORD_NAME)
         ->set('api_key', static::API_KEY_NAME)
         ->save();
+
+      $this->getTempStore()->delete('access_token');
+
       /** @var EntityStorageInterface $key_storage */
       $key_storage = $this->entityTypeManager->getStorage('key');
+
       $apiKey = $key_storage->load(static::API_KEY_NAME);
-      $dbKey = $key_storage->load(static::VDB_PASSWORD_NAME);
       if ($apiKey) {
         $apiKey->delete();
       }
+
+      $dbKey = $key_storage->load(static::VDB_PASSWORD_NAME);
       if ($dbKey) {
         $dbKey->delete();
       }
+
+      // Ensure Drupal State for trial account is removed too
+      \Drupal::state()->delete('ai_provider_amazeeio.trial_account');
+
       $this->messenger()->addWarning($this->t('This website has been disconnected from <strong>amazee.ai</strong>.'));
     }
   }

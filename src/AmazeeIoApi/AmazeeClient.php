@@ -16,6 +16,13 @@ use Psr\Http\Message\ResponseInterface;
 class AmazeeClient implements ClientInterface {
 
   /**
+   * The api endpoint host.
+   *
+   * @var string
+   */
+  public const AMAZEE_API_HOST = 'https://api.amazee.ai';
+
+  /**
    * The auth token to use for requests.
    *
    * @var string
@@ -267,7 +274,7 @@ class AmazeeClient implements ClientInterface {
   public function getPrivateApiKeys(): array {
     try {
       // Ensure host is set to main api endpoint
-      $this->setHost('https://api.amazee.ai');
+      $this->setHost(static::AMAZEE_API_HOST);
       $response = $this->makeRequest('GET', '/private-ai-keys');
     }
     catch (ClientException | GuzzleException | \Exception $e) {
@@ -336,6 +343,7 @@ class AmazeeClient implements ClientInterface {
     $headers = [
       'Content-Type' => 'application/json',
     ] + $headers;
+
     if ($this->authToken) {
       $headers['Authorization'] = 'Bearer ' . $this->authToken;
     }

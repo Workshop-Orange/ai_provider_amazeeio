@@ -4,7 +4,7 @@ ai_provider_amazeeio.settings:
   mapping:
     api_key:
       type: string
-      label: 'The API key for amazee.ai AI via Key module'
+      label: 'The API key for amazee.ai AI to be loaded via Key module'
     moderation:
       type: boolean
       label: 'Enable moderation requests before each request.'
@@ -28,4 +28,7 @@ ai_provider_amazeeio.settings:
       label: 'The user to use for the Postgres database.'
     postgres_password:
       type: string
-      label: 'The password to use for the Postgres database, loaded via Key module.'
+      label: 'The password to use for the Postgres database to be loaded via Key module.'
+    redirect_on_login:
+      type: boolean
+      label: 'If enabled, redirect the admin user on login to the provider settings page if not configured.'

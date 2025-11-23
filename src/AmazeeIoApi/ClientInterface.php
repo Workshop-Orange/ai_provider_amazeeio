@@ -129,5 +129,4 @@ interface ClientInterface {
    *   The API key object or NULL if it doesn't exist.
    */
   public function getPrivateApiKey(string $api_key): ?\stdClass;
-
 }

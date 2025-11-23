@@ -6,4 +6,4 @@ postgres_host: ''
 postgres_port: 5432
 postgres_default_database: ''
 postgres_username: ''
-postgres_password: ''
+postgres_password: 'amazeeio_ai_database'
