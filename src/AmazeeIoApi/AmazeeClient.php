@@ -273,7 +273,7 @@ class AmazeeClient implements ClientInterface {
    */
   public function getPrivateApiKeys(): array {
     try {
-      // Ensure host is set to main api endpoint
+      // Ensure host is set to main api endpoint.
       $this->setHost(static::AMAZEE_API_HOST);
       $response = $this->makeRequest('GET', '/private-ai-keys');
     }
@@ -351,7 +351,7 @@ class AmazeeClient implements ClientInterface {
     $body = $body ? json_encode($body) : NULL;
 
     return match ($type) {
-        'GET' => $this->client->get(
+      'GET' => $this->client->get(
             $this->host . $endpoint, [
               'headers' => $headers,
               'body' => $body,

@@ -229,7 +229,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         $this->messenger->addError($this->t('An error occurred while retrieving the available regions. Please consult the Drupal error log.'));
       }
 
-      // Check if we already have a key
+      // Check if we already have a key.
       $key_name = static::generatePrivateKeyName();
       $api_keys = array_filter(
         $this->amazeeClient->getPrivateApiKeys(),
@@ -238,13 +238,14 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       $api_key = reset($api_keys);
       if ($api_key) {
         $regions = [
-          $api_key->region
+          $api_key->region,
         ];
 
         $ajax['markup'] = [
           '#markup' => '<p><em>' . $this->t('We found an existing key for this host (@host) with the following region.', ['@host' => static::generatePrivateKeyName()]) . '</em></p>',
         ];
-      } else {
+      }
+      else {
         $ajax['markup'] = [
           '#markup' => '<p><em>' . $this->t('Choose where your AI features will be hosted.') . '</em></p>',
         ];
@@ -266,16 +267,16 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     }
 
     if ($state === static::STATE_CONNECTED) {
-      // Check if we're using a Trial Account
+      // Check if we're using a Trial Account.
       $trial_account = \Drupal::state()->get('ai_provider_amazeeio.trial_account');
 
       if ($trial_account) {
         $ajax['trial_account_message'] = [
           '#markup' => '<p>' .
-              $this->t('You are currently using a free anonymous trial account.') . ' ' .
-              $this->t('This account has a very limited budget.') . ' ' .
-              $this->t('You may want to disconnect and connect with a full user account.') .
-            '</p>',
+          $this->t('You are currently using a free anonymous trial account.') . ' ' .
+          $this->t('This account has a very limited budget.') . ' ' .
+          $this->t('You may want to disconnect and connect with a full user account.') .
+          '</p>',
         ];
       }
 
@@ -535,7 +536,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         $dbKey->delete();
       }
 
-      // Ensure Drupal State for trial account is removed too
+      // Ensure Drupal State for trial account is removed too.
       \Drupal::state()->delete('ai_provider_amazeeio.trial_account');
 
       $this->messenger()->addWarning($this->t('This website has been disconnected from <strong>amazee.ai</strong>.'));

@@ -315,10 +315,10 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
   /**
    * {@inheritdoc}
    *
-   * * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
-   * * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
-   * * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
-   * * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException.
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException
    */
   public function vectorSearch(
     string $collection_name,
