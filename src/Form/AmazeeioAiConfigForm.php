@@ -146,8 +146,12 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     // Check if we have LLM key and VDB already setup.
     /** @var \Drupal\Core\Entity\EntityStorageInterface $key_storage */
     $key_storage = $this->entityTypeManager->getStorage('key');
-    if ($key_storage->load(static::API_KEY_NAME) && $key_storage->load(static::VDB_PASSWORD_NAME)) {
-      return static::STATE_CONNECTED;
+    $ai_key = $key_storage->load(static::API_KEY_NAME);
+    if ($ai_key && $ai_key->getKeyValue() !== '') {
+      $vdb_key = $key_storage->load(static::VDB_PASSWORD_NAME);
+      if ($vdb_key && $vdb_key->getKeyValue() !== '') {
+        return static::STATE_CONNECTED;
+      }
     }
 
     return static::STATE_DISCONNECTED;
