@@ -2,9 +2,10 @@
 
 namespace Drupal\ai_provider_amazeeio\Form;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\ai\AiProviderPluginManager;
-use Drupal\ai\AiVdbProviderPluginManager;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -12,7 +13,6 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\TempStore\PrivateTempStore;
 use Drupal\Core\TempStore\PrivateTempStoreFactory;
 use Drupal\key\KeyRepositoryInterface;
-use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -70,16 +70,18 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    * Constructs a new AmazeeioAiConfigForm object.
    */
   public function __construct(
+    ConfigFactoryInterface $configFactory,
+    TypedConfigManagerInterface $typedConfigManager,
     protected AiProviderPluginManager $aiProviderManager,
     protected KeyRepositoryInterface $keyRepository,
-    protected Client $client,
     protected ClientInterface $amazeeClient,
     protected PrivateTempStoreFactory $tempStoreFactory,
     protected EntityTypeManagerInterface $entityTypeManager,
-    protected AiVdbProviderPluginManager $vdbProviderPluginManager,
     protected ModuleHandlerInterface $moduleHandler,
   ) {
-    $config = $this->config(static::CONFIG_NAME);
+    parent::__construct($configFactory, $typedConfigManager);
+    // Get the configuration with overrides.
+    $config = $this->configFactory->get(static::CONFIG_NAME);
     $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
     $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
   }
@@ -89,13 +91,13 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    */
   public static function create(ContainerInterface $container): static {
     return new static(
+      $container->get('config.factory'),
+      $container->get('config.typed'),
       $container->get('ai.provider'),
       $container->get('key.repository'),
-      $container->get('http_client'),
       $container->get('ai_provider_amazeeio.api_client'),
       $container->get('tempstore.private'),
       $container->get('entity_type.manager'),
-      $container->get('ai.vdb_provider'),
       $container->get('module_handler')
     );
   }
@@ -168,7 +170,8 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
-    $config = $this->config(static::CONFIG_NAME);
+    // Get the configuration with overrides.
+    $config = $this->configFactory->get(static::CONFIG_NAME);
 
     $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
 
