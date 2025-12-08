@@ -21,9 +21,9 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
   /**
    * The AmazeeAI API client.
    *
-   * @var \Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient
+   * @var \Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient|null
    */
-  protected AmazeeClient $amazeeClient;
+  protected AmazeeClient|null $amazeeClient = NULL;
 
   /**
    * {@inheritdoc}
@@ -37,25 +37,28 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
    * {@inheritdoc}
    */
   protected function loadClient(): void {
-    try {
-      $authToken = $this->loadApiKey();
-
+    parent::loadClient();
+    if ($this->amazeeClient === NULL) {
       $this->amazeeClient = new AmazeeClient(
         $this->httpClient,
         $this->loggerFactory,
       );
-      $this->amazeeClient->setToken($authToken);
-
-      if (!$this->apiKey) {
-        $this->setAuthentication($authToken);
-      }
       $host = $this->amazeeClient->getHost();
       $this->setEndpoint($host);
-      $this->client = $this->createClient();
+      try {
+        $this->amazeeClient->setToken($this->loadApiKey());
+      }
+      catch (AiSetupFailureException $e) {
+        throw new AiSetupFailureException('Failed to initialize amazee.ai client: ' . $e->getMessage(), $e->getCode(), $e);
+      }
     }
-    catch (AiSetupFailureException $e) {
-      throw new AiSetupFailureException('Failed to initialize amazee.ai client: ' . $e->getMessage(), $e->getCode(), $e);
-    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getEndpoint(): ?string {
+    return $this->configFactory->get('ai_provider_amazeeio.settings')->get('host');
   }
 
   /**
