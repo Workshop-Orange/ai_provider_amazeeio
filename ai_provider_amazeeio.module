@@ -115,8 +115,10 @@ function _ai_provider_amazeeio_redirect_to_settings_page(): void {
  * Helper function to log user out of amazee.ai system.
  */
 function _ai_provider_amazeeio_amazee_logout(): void {
+  $config = \Drupal::config('ai_provider_amazeeio.settings');
   /** @var \Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface $amazee_client */
   $amazee_client = \Drupal::service('ai_provider_amazeeio.api_client');
+  $amazee_client->setHost($config->get('amazee_host') ?? '');
   $amazee_client->logout();
 
   /** @var \Drupal\Core\TempStore\PrivateTempStoreFactory $temp_store */

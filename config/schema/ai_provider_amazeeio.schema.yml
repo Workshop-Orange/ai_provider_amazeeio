@@ -10,10 +10,10 @@ ai_provider_amazeeio.settings:
       label: 'Enable moderation requests before each request.'
     amazee_host:
       type: string
-      label: 'The host to use for the API request.'
+      label: 'The host to use for Amazee AI API calls.'
     host:
       type: string
-      label: 'The host to use for the API requests.'
+      label: 'The host to use for LLM API calls.'
     postgres_host:
       type: string
       label: 'The host to use for the Postgres database.'
