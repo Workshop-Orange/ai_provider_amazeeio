@@ -14,6 +14,7 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\GetCollectionsException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\InsertIntoCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\QuerySearchException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException;
+use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use PgSql\Connection;
 
 /**
@@ -476,6 +477,7 @@ class PostgresPgvectorClient {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\AddFieldIfNotExistsException
    */
   public function updateFields($fields, string $collection_name, Connection $connection): void {
+    /** @var \Drupal\search_api\Item\FieldInterface $field */
     foreach ($fields as $field) {
       $field_data_definition = $field->getDataDefinition();
 
@@ -487,12 +489,16 @@ class PostgresPgvectorClient {
       $isMultiple = TRUE;
 
       $field_definition = $field_data_definition->getFieldDefinition();
+      // Set a default cardinality of 1 in case we can't get more info about it.
+      $field_cardinality = 1;
       if ($field_definition instanceof BaseFieldDefinition) {
         $field_cardinality = $field_definition->getCardinality();
       }
       else {
-        $field_cardinality =
-          $field_definition->get('fieldStorage')->getCardinality();
+        $field_storage_definition = $field_definition->get('fieldStorage');
+        if ($field_storage_definition && $field_storage_definition instanceof FieldStorageDefinitionInterface) {
+          $field_cardinality = $field_storage_definition->getCardinality();
+        }
       }
       if ($field_cardinality === 1) {
         $isMultiple = FALSE;
