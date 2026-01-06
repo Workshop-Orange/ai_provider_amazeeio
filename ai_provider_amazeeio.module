@@ -24,7 +24,7 @@ use Drupal\Core\Url;
  */
 function ai_provider_amazeeio_search_api_index_update(IndexInterface $index): void {
   $server = $index->getServerInstance();
-  if (!$server || $server->getBackend() instanceof SearchApiAiSearchBackend) {
+  if (!$server || !$server->getBackend() instanceof SearchApiAiSearchBackend) {
     return;
   }
   $backend_config = $server->getBackendConfig();
