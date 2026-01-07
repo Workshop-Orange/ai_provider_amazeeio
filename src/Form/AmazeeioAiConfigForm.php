@@ -486,6 +486,11 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
           ->set('key_provider', 'config')
           ->set('key_provider_settings', ['key_value' => $api_key->litellm_token])
           ->set('key_input', 'text_field')
+          ->set('dependencies', [
+            'module' => [
+              'ai_provider_amazeeio',
+            ],
+          ])
           ->save();
 
         // Load or create the amazee.ai Postgres key.
@@ -503,6 +508,11 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
           ->set('key_provider', 'config')
           ->set('key_provider_settings', ['key_value' => $api_key->database_password])
           ->set('key_input', 'text_field')
+          ->set('dependencies', [
+            'module' => [
+              'ai_provider_amazeeio',
+            ],
+          ])
           ->save();
 
         // Set the default models where available.
