@@ -5,8 +5,12 @@ namespace Drupal\ai_provider_amazeeio\Plugin\AiProvider;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient;
 use Drupal\ai\Attribute\AiProvider;
 use Drupal\ai\Base\OpenAiBasedProviderClientBase;
+use Drupal\ai\Exception\AiQuotaException;
 use Drupal\ai\Exception\AiSetupFailureException;
+use Drupal\Core\State\StateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\Core\Url;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -26,10 +30,22 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
   protected AmazeeClient|null $amazeeClient = NULL;
 
   /**
+   * The state service.
+   */
+  protected StateInterface $state;
+
+  /**
+   * The logger.
+   */
+  protected LoggerInterface $logger;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     $plugin = parent::create($container, $configuration, $plugin_id, $plugin_definition);
+    $plugin->state = $container->get('state');
+    $plugin->logger = $container->get('logger.channel.ai_provider_amazeeio');
     return $plugin;
   }
 
@@ -41,7 +57,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
     if ($this->amazeeClient === NULL) {
       $this->amazeeClient = new AmazeeClient(
         $this->httpClient,
-        $this->loggerFactory,
+        $this->logger,
       );
       $host = $this->amazeeClient->getHost();
       $this->setEndpoint($host);
@@ -168,6 +184,24 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
       'chat_with_tools',
       'embeddings',
     ];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function handleApiException(\Exception $e): void {
+    if (strpos($e->getMessage(), 'Budget has been exceeded!') !== FALSE) {
+      $message = 'Your budget has been exceeded!';
+
+      if ($this->state->get('ai_provider_amazeeio.trial_account')) {
+        $url = Url::fromRoute('ai_provider_amazeeio.settings_form')->toString();
+        $message = str_replace(':url', $url, 'Your anonymous free trial budget has been exceeded! To continue using amazee.ai, please upgrade to a free account by going to <a href=":url">amazee.ai AI settings</a> and validating your email address.');
+      }
+
+      throw new AiQuotaException($message . ' ' . $e->getMessage());
+    }
+
+    throw $e;
   }
 
 }

@@ -91,7 +91,12 @@ function _ai_provider_amazeeio_redirect_to_settings_page(): void {
     // result.
     $apiClient = \Drupal::service('ai_provider_amazeeio.api_client');
     $apiKey = $apiClient->getPrivateApiKey($config->get('api_key'));
-    if (is_null($apiKey)) {
+    $trial_account = \Drupal::state()->get('ai_provider_amazeeio.trial_account');
+    if (is_null($apiKey) || $trial_account) {
+      if ($trial_account) {
+        // @todo do we want to force logout the trial account?
+      }
+
       // Triggering a redirect without halting the execution is something that
       // was also discussed here
       // https://www.drupal.org/project/redirect_after_login/issues/3214949

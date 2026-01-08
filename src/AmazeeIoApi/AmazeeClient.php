@@ -3,12 +3,12 @@
 namespace Drupal\ai_provider_amazeeio\AmazeeIoApi;
 
 use Drupal\ai_provider_amazeeio\DTO\Model;
-use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Utils;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LoggerInterface;
 
 /**
  * Client for Amazee private key API.
@@ -48,15 +48,15 @@ class AmazeeClient implements ClientInterface {
    *
    * @param \GuzzleHttp\Client $client
    *   A Guzzle client to use for requests.
-   * @param \Drupal\Core\Logger\LoggerChannelFactoryInterface $loggerFactory
-   *   A logger factory.
+   * @param \Psr\Log\LoggerInterface $logger
+   *   The logger.
    */
   public function __construct(
     protected Client $client,
-    protected LoggerChannelFactoryInterface $loggerFactory,
+    protected LoggerInterface $logger,
   ) {
     $config = \Drupal::config('ai_provider_amazeeio.settings');
-    $this->host = $config->get('host');
+    $this->host = $config->get('host') ?? '';
   }
 
   /**
@@ -100,13 +100,13 @@ class AmazeeClient implements ClientInterface {
       );
     }
     catch (ClientException | GuzzleException | \Exception $e) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to login to amazee.ai: @error', ['@error' => $e->getMessage()]);
+      $this->logger->error('Failed to login to amazee.ai: @error', ['@error' => $e->getMessage()]);
       return '';
     }
 
     $response_body = json_decode($response->getBody()->getContents());
     if (empty($response_body->access_token)) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('amazee.ai login returned success with empty access token.');
+      $this->logger->error('amazee.ai login returned success with empty access token.');
       return '';
     }
 
@@ -121,7 +121,7 @@ class AmazeeClient implements ClientInterface {
       $this->makeRequest('POST', '/auth/logout');
     }
     catch (ClientException | GuzzleException | \Exception $e) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to log out of amazee.ai: @error', ['@error' => $e->getMessage()]);
+      $this->logger->error('Failed to log out of amazee.ai: @error', ['@error' => $e->getMessage()]);
       return FALSE;
     }
 
@@ -136,7 +136,7 @@ class AmazeeClient implements ClientInterface {
       $this->makeRequest('POST', '/auth/validate-email', ['email' => $email]);
     }
     catch (ClientException | GuzzleException | \Exception $e) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to validate email: @error', ['@error' => $e->getMessage()]);
+      $this->logger->error('Failed to validate email: @error', ['@error' => $e->getMessage()]);
     }
   }
 
@@ -153,7 +153,7 @@ class AmazeeClient implements ClientInterface {
       return $data['access_token'];
     }
     catch (ClientException | GuzzleException | \Exception $e) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to validate email: @error', ['@error' => $e->getMessage()]);
+      $this->logger->error('Failed to validate email: @error', ['@error' => $e->getMessage()]);
     }
     return NULL;
   }
@@ -171,7 +171,7 @@ class AmazeeClient implements ClientInterface {
         );
     }
     catch (ClientException | GuzzleException | \Exception $e) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to register with amazee.ai: @error', ['@error' => $e->getMessage()]);
+      $this->logger->error('Failed to register with amazee.ai: @error', ['@error' => $e->getMessage()]);
       return '';
     }
 
@@ -203,7 +203,7 @@ class AmazeeClient implements ClientInterface {
       $response = $this->makeRequest('GET', '/regions');
     }
     catch (ClientException | GuzzleException | \Exception $e) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to get current list of regions from amazee.ai: @error', ['@error' => $e->getMessage()]);
+      $this->logger->error('Failed to get current list of regions from amazee.ai: @error', ['@error' => $e->getMessage()]);
       throw $e;
     }
 
@@ -248,7 +248,7 @@ class AmazeeClient implements ClientInterface {
         'team_id' => $team_id,
       ];
       if (empty($team_id)) {
-        $this->loggerFactory->get('ai_provider_amazeeio')->warning('No team_id provided for private key creation, will try to get it from /auth/me.');
+        $this->logger->warning('No team_id provided for private key creation, will try to get it from /auth/me.');
         // Run auth/me again to get the team_id.
         $response = $this->makeRequest('GET', '/auth/me');
         $response_body = json_decode($response->getBody()->getContents());
@@ -257,7 +257,7 @@ class AmazeeClient implements ClientInterface {
       $response = $this->makeRequest('POST', '/private-ai-keys', $body);
     }
     catch (ClientException | GuzzleException | \Exception $e) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to create private key amazee.ai: @error', ['@error' => $e->getMessage()]);
+      $this->logger->error('Failed to create private key amazee.ai: @error', ['@error' => $e->getMessage()]);
       return [];
     }
     $response = $response->getBody()->getContents();
@@ -278,7 +278,7 @@ class AmazeeClient implements ClientInterface {
       $response = $this->makeRequest('GET', '/private-ai-keys');
     }
     catch (ClientException | GuzzleException | \Exception $e) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to get existing private keys amazee.ai: @error', ['@error' => $e->getMessage()]);
+      $this->logger->error('Failed to get existing private keys amazee.ai: @error', ['@error' => $e->getMessage()]);
       return [];
     }
 
@@ -306,11 +306,11 @@ class AmazeeClient implements ClientInterface {
       }
     }
     catch (ClientException | \Exception $e) {
-      $this->loggerFactory->get('ai_provider_amazeeio')->error('Failed to get existing private key @id from amazee.ai: @error', ['@error' => $e->getMessage()]);
+      $this->logger->error('Failed to get existing private key @id from amazee.ai: @error', ['@error' => $e->getMessage()]);
       return NULL;
     }
 
-    $this->loggerFactory->get('ai_provider_amazeeio')->error('Existing private key @id does not exist.', ['@id' => $api_key]);
+    $this->logger->error('Existing private key @id does not exist.', ['@id' => $api_key]);
     return NULL;
   }
 
