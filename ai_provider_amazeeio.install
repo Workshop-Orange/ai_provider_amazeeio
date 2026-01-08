@@ -7,8 +7,7 @@
 
 declare(strict_types=1);
 
-use Drupal\ai_provider_amazeeio\TrialAccess\ConsoleProgressReporter;
-use Drupal\ai_provider_amazeeio\TrialAccess\NullProgressReporter;
+use Drupal\ai_provider_amazeeio\TrialAccess\ProgressReporterFactoryInterface;
 use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisionerFactoryInterface;
 use Drupal\Core\Utility\Error;
 use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisioningException;
@@ -29,17 +28,13 @@ function ai_provider_amazeeio_install(bool $is_syncing): void {
     return;
   }
 
-  $progress = (PHP_SAPI === 'cli')
-    ? $container->get(ConsoleProgressReporter::class)
-    : $container->get(NullProgressReporter::class);
-
   $factory = $container->get(TrialAccountProvisionerFactoryInterface::class);
 
   /** @var \Drupal\Core\Messenger\MessengerInterface $messenger */
   $messenger = $container->get(MessengerInterface::class);
 
   try {
-    $result = $factory->create($progress)->provision();
+    $result = $factory->create($container->get(ProgressReporterFactoryInterface::class)->forCurrentRuntime())->provision();
 
     if ($result === TrialAccountProvisioningResult::Provisioned) {
       $messenger->addMessage(new TranslatableMarkup('Successfully provisioned an anonymous amazee.ai trial account.'));
