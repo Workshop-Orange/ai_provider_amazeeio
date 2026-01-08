@@ -26,8 +26,8 @@ services:
       - '@logger.channel.ai_provider_amazeeio'
       - '@messenger'
 
-  Drupal\ai_provider_amazeeio\TrialAccess\NullProgressReporter: ~
-  Drupal\ai_provider_amazeeio\TrialAccess\ConsoleProgressReporter: ~
+  Drupal\ai_provider_amazeeio\TrialAccess\ProgressReporterFactoryInterface:
+    class: Drupal\ai_provider_amazeeio\TrialAccess\ProgressReporterFactory
 
   Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisionerFactoryInterface:
     class: Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisionerFactory
