@@ -189,6 +189,16 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
   /**
    * {@inheritdoc}
    */
+  public function getSetupData(): array {
+    return [
+      'key_config_name' => 'api_key',
+      'default_models' => [],
+    ];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function handleApiException(\Exception $e): void {
     if (strpos($e->getMessage(), 'Budget has been exceeded!') !== FALSE) {
       $message = 'Your budget has been exceeded!';
