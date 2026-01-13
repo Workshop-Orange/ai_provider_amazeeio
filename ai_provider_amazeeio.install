@@ -62,6 +62,20 @@ function ai_provider_amazeeio_update_10001(): void {
 }
 
 /**
+ * Implements hook_uninstall().
+ */
+function ai_provider_amazeeio_uninstall(): void {
+  // Delete the keys created by this module.
+  $keys_to_delete = ['amazeeio_ai_database', 'amazeeio_ai'];
+  $key_storage = \Drupal::entityTypeManager()->getStorage('key');
+  foreach ($keys_to_delete as $key_id) {
+    if ($key = $key_storage->load($key_id)) {
+      $key->delete();
+    }
+  }
+}
+
+/**
  * Implements hook_update_N().
  *
  * Set default model for chat_with_tools and chat_with_structured_response
