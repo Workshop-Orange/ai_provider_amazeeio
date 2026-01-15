@@ -190,10 +190,35 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
    * {@inheritdoc}
    */
   public function getSetupData(): array {
-    return [
+    try {
+      $this->loadClient();
+      $models = $this->amazeeClient->models();
+    }
+    catch (\Exception $e) {
+      $models = [];
+    }
+
+    $setup = [
       'key_config_name' => 'api_key',
       'default_models' => [],
     ];
+
+    if (isset($models['chat']) && $models['chat']->supportsChat) {
+      $setup['default_models']['chat'] = 'chat';
+      $setup['default_models']['chat_with_tools'] = 'chat';
+      $setup['default_models']['chat_with_structured_response'] = 'chat';
+      $setup['default_models']['chat_with_complex_json'] = 'chat';
+
+      if ($models['chat']->supportsImageInput) {
+        $setup['default_models']['chat_with_image_vision'] = 'chat';
+      }
+    }
+
+    if (isset($models['embeddings']) && $models['embeddings']->supportsEmbeddings) {
+      $setup['default_models']['embeddings'] = 'embeddings';
+    }
+
+    return $setup;
   }
 
   /**
