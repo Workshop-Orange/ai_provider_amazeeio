@@ -7,51 +7,7 @@
 
 declare(strict_types=1);
 
-use Drupal\ai_provider_amazeeio\TrialAccess\ProgressReporterFactoryInterface;
-use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisionerFactoryInterface;
-use Drupal\Core\Utility\Error;
-use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisioningException;
-use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisioningResult;
-use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
-
-/**
- * Implements hook_install().
- */
-function ai_provider_amazeeio_install(bool $is_syncing): void {
-  /** @var \Drupal\Component\DependencyInjection\ContainerInterface $container */
-  $container = \Drupal::getContainer();
-  $logger = $container->get('logger.channel.ai_provider_amazeeio');
-
-  if ($is_syncing) {
-    $logger->info('Skipping amazee.ai trial account provisioning during Drupal configuration sync.');
-    return;
-  }
-
-  $factory = $container->get(TrialAccountProvisionerFactoryInterface::class);
-
-  /** @var \Drupal\Core\Messenger\MessengerInterface $messenger */
-  $messenger = $container->get(MessengerInterface::class);
-
-  try {
-    $result = $factory->create($container->get(ProgressReporterFactoryInterface::class)->forCurrentRuntime())->provision();
-
-    if ($result === TrialAccountProvisioningResult::Provisioned) {
-      $messenger->addMessage(new TranslatableMarkup('Successfully provisioned an anonymous amazee.ai trial account.'));
-    }
-    elseif ($result === TrialAccountProvisioningResult::AlreadyProvisioned) {
-      $messenger->addMessage(new TranslatableMarkup('amazee.ai trial account is already provisioned, nothing to do.'));
-    }
-  }
-  catch (TrialAccountProvisioningException $e) {
-    Error::logException($logger, $e);
-    $messenger->addMessage(
-      new TranslatableMarkup('Failed to provision an amazee.ai trial account. Check the system logs for details.'),
-      MessengerInterface::TYPE_ERROR
-    );
-    throw $e;
-  }
-}
 
 /**
  * Install AI Search.
