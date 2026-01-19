@@ -136,7 +136,7 @@ final class Model {
     $model_info = $response->model_info;
     return new self(
       $response->model_name,
-      $model_info->supports_image_input ?? FALSE,
+      $model_info->supports_image_input ?? $model_info->supports_vision ?? FALSE,
       $model_info->supports_image_output ?? FALSE,
       $model_info->supports_audio_input ?? FALSE,
       $model_info->supports_audio_output ?? FALSE,

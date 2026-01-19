@@ -230,7 +230,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
 
       if ($this->state->get('ai_provider_amazeeio.trial_account')) {
         $url = Url::fromRoute('ai_provider_amazeeio.settings_form')->toString();
-        $message = str_replace(':url', $url, 'Your anonymous free trial budget has been exceeded! To continue using amazee.ai, please upgrade to a free account by going to <a href=":url">amazee.ai AI settings</a> and validating your email address.');
+        $message = str_replace(':url', $url, 'Your anonymous free trial budget has been exceeded! To continue using amazee.ai, please upgrade to a free account by going to the amazee.ai AI settings at :url and validating your email address.');
       }
 
       throw new AiQuotaException($message . ' ' . $e->getMessage());
