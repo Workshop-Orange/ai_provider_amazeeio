@@ -104,7 +104,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
     foreach ($this->amazeeClient->models() as $model) {
       switch ($operation_type) {
         case 'text_to_image':
-          if ($model->supportsImageOutput) {
+          if ($model->supportsImageGeneration) {
             $models[$model->name] = $model->name;
           }
           break;
@@ -139,8 +139,20 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
           }
           break;
 
-        case 'image_and_audio_to_video':
-          if ($model->supportsImageAndAudioToVideo) {
+        case 'chat_with_image_vision':
+          if ($model->supportsVision) {
+            $models[$model->name] = $model->name;
+          }
+          break;
+
+        case 'chat_with_structured_response':
+          if ($model->supportsResponseSchema) {
+            $models[$model->name] = $model->name;
+          }
+          break;
+
+        case 'chat_with_tools':
+          if ($model->supportsFunctionCalling || $model->supportsToolChoice) {
             $models[$model->name] = $model->name;
           }
           break;
@@ -203,13 +215,13 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
       'default_models' => [],
     ];
 
-    if (isset($models['chat']) && $models['chat']->supportsChat) {
+    if (isset($models['chat']) && ($models['chat']->supportsChat)) {
       $setup['default_models']['chat'] = 'chat';
       $setup['default_models']['chat_with_tools'] = 'chat';
       $setup['default_models']['chat_with_structured_response'] = 'chat';
       $setup['default_models']['chat_with_complex_json'] = 'chat';
 
-      if ($models['chat']->supportsImageInput) {
+      if ($models['chat']->supportsVision) {
         $setup['default_models']['chat_with_image_vision'] = 'chat';
       }
     }
