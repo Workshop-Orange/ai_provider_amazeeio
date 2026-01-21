@@ -81,8 +81,32 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
    * {@inheritdoc}
    */
   public function getConfiguredModels(?string $operation_type = NULL, array $capabilities = []): array {
+    // Build cache key based on operation type and capabilities.
+    $cache_key_parts = ['amazeeai', 'models', $operation_type ?? 'all'];
+
+    if (!empty($capabilities)) {
+      $capability_names = array_map(fn($cap) => $cap->value ?? $cap, $capabilities);
+      sort($capability_names);
+      $cache_key_parts[] = implode('_', $capability_names);
+    }
+
+    $cache_key = implode(':', $cache_key_parts);
+
+    // Try to get from cache.
+    $cached = $this->cacheBackend->get($cache_key);
+
+    if ($cached !== FALSE) {
+      return $cached->data;
+    }
+
     $this->loadClient();
-    return $this->getModels($operation_type ?? '', $capabilities);
+
+    $models = $this->getModels($operation_type ?? '', $capabilities);
+
+    // Cache for 24 hours (86400 seconds).
+    $this->cacheBackend->set($cache_key, $models, time() + 86400);
+
+    return $models;
   }
 
   /**
