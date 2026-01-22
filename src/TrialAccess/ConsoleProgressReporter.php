@@ -40,10 +40,13 @@ final class ConsoleProgressReporter implements ProgressReporterInterface {
 
     $this->section->writeln($message);
 
-    $this->bar = new ProgressBar($this->section);
+    $this->bar = new ProgressBar($this->section, 100);
 
     // Keep the output stable and readable.
-    $this->bar->setFormat(' %current%% [%bar%] %message%');
+    $this->bar->setBarCharacter('=');
+    $this->bar->setProgressCharacter('>');
+    $this->bar->setEmptyBarCharacter('-');
+    $this->bar->setFormat(' %percent%% [%bar%] %message%');
     $this->bar->setMessage('Waiting for API response...');
 
     $this->bar->start();
@@ -56,7 +59,11 @@ final class ConsoleProgressReporter implements ProgressReporterInterface {
     if ($steps < 1) {
       $steps = 1;
     }
-    $this->bar?->advance($steps);
+
+    // Don't update the progress bar if it's already at 100%.
+    if ($this->bar && $this->bar->getProgress() < 100) {
+      $this->bar->advance($steps);
+    }
   }
 
   /**

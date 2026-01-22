@@ -7,6 +7,7 @@ use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\ai\AiProviderPluginManager;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface;
+use Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
@@ -517,12 +518,24 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
 
         // Set the default models where available.
         /** @var \Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider $provider */
-        $provider = $this->aiProviderManager->createInstance('amazeeio');
+        $provider = $this->aiProviderManager->createInstance(AmazeeioAiProvider::PROVIDER_ID);
         // Run post-setup when not in unit tests, since it connects to the
         // real LLM.
         if (!$this->testMode()) {
           $provider->postSetup();
         }
+
+        // Fetch setup data.
+        $setup_data = $provider->getSetupData();
+
+        // Ensure the setup data is valid.
+        if (!empty($setup_data) && is_array($setup_data) && !empty($setup_data['default_models']) && is_array($setup_data['default_models'])) {
+          // Loop through and set default models for each operation type.
+          foreach ($setup_data['default_models'] as $op_type => $model_id) {
+            $this->aiProviderManager->defaultIfNone($op_type, AmazeeioAiProvider::PROVIDER_ID, $model_id);
+          }
+        }
+
         $this->messenger()->addStatus($this->t('This website has been connected to <strong>amazee.ai</strong>.'));
       }
     }
