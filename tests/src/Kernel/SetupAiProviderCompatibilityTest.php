@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\ai_provider_amazeeio\Kernel;
 
 use Drupal\ai\Plugin\ConfigAction\SetupAiProvider;
+use Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\key\Entity\Key;
 
@@ -58,7 +59,7 @@ final class SetupAiProviderCompatibilityTest extends KernelTestBase {
       'key_value' => 'foo',
       'key_name' => $key_id,
       'key_label' => 'baz',
-      'provider' => 'amazeeio',
+      'provider' => AmazeeioAiProvider::PROVIDER_ID,
     ]);
 
     $key = Key::load($key_id);

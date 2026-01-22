@@ -23,6 +23,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
 
   /**
+   * Default provider ID.
+   */
+  const PROVIDER_ID = 'amazeeio';
+
+  /**
    * The AmazeeAI API client.
    *
    * @var \Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient|null

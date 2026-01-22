@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider;
 
 /**
  * Install AI Search.
@@ -43,7 +44,7 @@ function ai_provider_amazeeio_update_10002(): TranslatableMarkup {
   $return_message = \Drupal::translation()->translate('No changes made to amazee.ai provider default models.');
   foreach (['chat_with_tools', 'chat_with_structured_response'] as $type) {
     // If TRUE, it meant that it was needed to be set.
-    if ($ai_provider->defaultIfNone($type, 'amazeeio', 'claude-3-5-sonnet')) {
+    if ($ai_provider->defaultIfNone($type, AmazeeioAiProvider::PROVIDER_ID, 'claude-3-5-sonnet')) {
       $return_message = \Drupal::translation()->translate('amazee.ai provider default model set for relevant chat operation types.');
     }
   }

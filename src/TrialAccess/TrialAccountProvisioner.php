@@ -7,6 +7,7 @@ namespace Drupal\ai_provider_amazeeio\TrialAccess;
 use Drupal\ai\AiProviderPluginManager;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient;
 use Drupal\ai_provider_amazeeio\Form\AmazeeioAiConfigForm;
+use Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
@@ -107,7 +108,7 @@ final class TrialAccountProvisioner implements TrialAccountProvisionerInterface 
       ->save();
 
     /** @var \Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider $provider */
-    $provider = $this->aiProviderManager->createInstance('amazeeio');
+    $provider = $this->aiProviderManager->createInstance(AmazeeioAiProvider::PROVIDER_ID);
 
     if (!$this->moduleHandler->moduleExists('ai_provider_amazeeio_test')) {
       $provider->postSetup();
