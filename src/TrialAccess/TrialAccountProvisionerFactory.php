@@ -29,12 +29,16 @@ final class TrialAccountProvisionerFactory implements TrialAccountProvisionerFac
     private readonly AmazeeClient $apiClient,
     private readonly StateInterface $state,
     private readonly LoggerInterface $logger,
+    private readonly bool $dryRun = FALSE,
   ) {}
 
   /**
    * {@inheritdoc}
    */
-  public function create(ProgressReporterInterface $progressReporter): TrialAccountProvisioner {
+  public function create(ProgressReporterInterface $progressReporter): TrialAccountProvisionerInterface {
+    if ($this->dryRun) {
+      return new NullTrialAccessProvisioner();
+    }
     return new TrialAccountProvisioner(
       $this->entityTypeManager,
       $this->httpClient,

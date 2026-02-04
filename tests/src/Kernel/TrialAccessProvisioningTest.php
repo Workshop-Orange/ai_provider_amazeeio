@@ -10,6 +10,7 @@ use Drupal\ai_provider_amazeeio\TrialAccess\NullProgressReporter;
 use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisionerFactoryInterface;
 use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisioningException;
 use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisioningResult;
+use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\State\StateInterface;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\key\Entity\Key;
@@ -71,6 +72,17 @@ final class TrialAccessProvisioningTest extends KernelTestBase {
       }
 
     });
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function register(ContainerBuilder $container): void {
+    parent::register($container);
+
+    // Guardrails are in place, we can bypass the built-in protection
+    // that disables trial access provisioning in tests.
+    $container->setParameter('ai_provider_amazeeio.internal.disable_environment_detection', TRUE);
   }
 
   /**

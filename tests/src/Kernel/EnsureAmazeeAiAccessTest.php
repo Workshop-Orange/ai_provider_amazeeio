@@ -19,7 +19,6 @@ final class EnsureAmazeeAiAccessTest extends KernelTestBase {
   protected static $modules = [
     'ai',
     'ai_provider_amazeeio',
-    'ai_provider_amazeeio_no_trial_access_provisioning',
   ];
 
   /**
