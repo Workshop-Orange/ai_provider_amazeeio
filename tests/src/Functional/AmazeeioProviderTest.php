@@ -30,7 +30,6 @@ class AmazeeioProviderTest extends BrowserTestBase {
     'ai',
     'ai_provider_amazeeio',
     'ai_provider_amazeeio_test',
-    'ai_provider_amazeeio_no_trial_access_provisioning',
   ];
 
   /**
