@@ -149,7 +149,7 @@ class AmazeeioProviderTest extends BrowserTestBase {
   public function testKeyGeneration() {
     $this->fillEmail('john@doe.com');
     $this->fillCode('42');
-    $this->selectRegion('CH 1');
+    $this->selectRegion('ch-1');
 
     $config = \Drupal::configFactory()->get(AmazeeioAiConfigForm::CONFIG_NAME);
     $this->assertEquals('https://amazeeio.llm/ch1', $config->get('host'));

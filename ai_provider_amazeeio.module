@@ -5,16 +5,17 @@
  * Hook implementations for the amazee.ai AI provider.
  */
 
-use Drupal\key\Plugin\KeyProvider\ConfigKeyProvider;
-use Drupal\key\Entity\Key;
-use Drupal\config_ignore\ConfigIgnoreConfig;
+use Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient;
 use Drupal\ai_search\Plugin\search_api\backend\SearchApiAiSearchBackend;
+use Drupal\config_ignore\ConfigIgnoreConfig;
 use Drupal\Core\Session\AccountInterface;
-use Drupal\search_api\Entity\Server;
-use Drupal\user\UserInterface;
 use Drupal\Core\TempStore\TempStoreException;
-use Drupal\search_api\IndexInterface;
 use Drupal\Core\Url;
+use Drupal\key\Entity\Key;
+use Drupal\key\Plugin\KeyProvider\ConfigKeyProvider;
+use Drupal\search_api\Entity\Server;
+use Drupal\search_api\IndexInterface;
+use Drupal\user\UserInterface;
 
 /**
  * Implements hook_search_api_index_update().
@@ -97,18 +98,10 @@ function _ai_provider_amazeeio_redirect_to_settings_page(): void {
         // @todo do we want to force logout the trial account?
       }
 
-      // Triggering a redirect without halting the execution is something that
-      // was also discussed here
+      // Redirect to the settings page.
+      //
+      // Using the lighter, 2nd approach from #107 in
       // https://www.drupal.org/project/redirect_after_login/issues/3214949
-      // There are basically two options proposed in that issue:
-      // 1. Using a middleware, see comment nr #25 for an implementation.
-      // 2. Using a destination parameter on the current request, see nr. #107
-      // for an implementation.
-      // The advantage of the second option is that is lighter, and it does not
-      // add a new call on every request (the option 1 would basically just add
-      // another middleware into the queue which will be executed on every
-      // request). For that reason, the following implementation uses the second
-      // approach.
       $url = Url::fromRoute('ai_provider_amazeeio.settings_form')->toString();
       \Drupal::service('request_stack')
         ->getCurrentRequest()->query->set('destination', $url);
@@ -120,10 +113,9 @@ function _ai_provider_amazeeio_redirect_to_settings_page(): void {
  * Helper function to log user out of amazee.ai system.
  */
 function _ai_provider_amazeeio_amazee_logout(): void {
-  $config = \Drupal::config('ai_provider_amazeeio.settings');
   /** @var \Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface $amazee_client */
   $amazee_client = \Drupal::service('ai_provider_amazeeio.api_client');
-  $amazee_client->setHost($config->get('amazee_host') ?? '');
+  $amazee_client->setHost(AmazeeClient::AMAZEE_API_HOST);
   $amazee_client->logout();
 
   /** @var \Drupal\Core\TempStore\PrivateTempStoreFactory $temp_store */
