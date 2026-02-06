@@ -119,7 +119,8 @@ class MockHttpClient extends Client {
   const REGIONS = [
     [
       "id" => 0,
-      "name" => "US 1",
+      "name" => "us-1",
+      "label" => "US 1",
       "postgres_host" => "https://amazeeio.vdb/us1",
       "litellm_api_url" => "https://amazeeio.llm/us1",
       "is_active" => TRUE,
@@ -127,7 +128,8 @@ class MockHttpClient extends Client {
     ],
     [
       "id" => 1,
-      "name" => "Inactive",
+      "name" => "inactive-region",
+      "label" => "Inactive Region",
       "postgres_host" => "https://amazeeio.vdb/inactive",
       "litellm_api_url" => "https://amazeeio.llm/inactive",
       "is_active" => FALSE,
@@ -135,7 +137,8 @@ class MockHttpClient extends Client {
     ],
     [
       "id" => 2,
-      "name" => "CH 1",
+      "name" => "ch-1",
+      "label" => "CH 1",
       "postgres_host" => "https://amazeeio.vdb/ch1",
       "litellm_api_url" => "https://amazeeio.llm/ch1",
       "is_active" => TRUE,
@@ -169,7 +172,7 @@ class MockHttpClient extends Client {
     $region_id = $body->get('region_id');
     if ($region_id === "0") {
       // Simulate a broken region for error handling tests.
-      $this->error(500, 'Region US 1 is not great again.');
+      $this->error(500, 'Region "US 1" is down.');
     }
     if (!array_key_exists($region_id, static::REGIONS)) {
       $this->error(400, "Invalid region_id $region_id.");
@@ -196,6 +199,7 @@ class MockHttpClient extends Client {
         "id" => 0,
         "name" => "some other key",
         "region" => static::REGIONS[0]['name'],
+        "label" => static::REGIONS[0]['label'],
         "database_host" => static::REGIONS[0]['postgres_host'],
         "database_name" => "db_name_us1",
         "database_username" => "db_user_us1",
@@ -212,6 +216,7 @@ class MockHttpClient extends Client {
         "id" => 1,
         "name" => AmazeeioAiConfigForm::generatePrivateKeyName(),
         "region" => static::REGIONS[2]['name'],
+        "label" => static::REGIONS[2]['label'],
         "database_host" => static::REGIONS[2]['postgres_host'],
         "database_name" => "db_name_ch1",
         "database_username" => "db_user_ch1",

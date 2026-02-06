@@ -2,14 +2,15 @@
 
 namespace Drupal\ai_provider_amazeeio\Form;
 
-use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\Core\Config\TypedConfigManagerInterface;
-use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\ai\AiProviderPluginManager;
+use Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface;
 use Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider;
-use Drupal\Core\Form\ConfigFormBase;
+use Drupal\ai\AiProviderPluginManager;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\TempStore\PrivateTempStore;
 use Drupal\Core\TempStore\PrivateTempStoreFactory;
@@ -81,9 +82,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     protected ModuleHandlerInterface $moduleHandler,
   ) {
     parent::__construct($configFactory, $typedConfigManager);
-    // Get the configuration with overrides.
-    $config = $this->configFactory->get(static::CONFIG_NAME);
-    $this->amazeeClient->setHost($config->get('amazee_host') ?? '');
+    $this->amazeeClient->setHost(AmazeeClient::AMAZEE_API_HOST);
     $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
   }
 
@@ -245,8 +244,10 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       );
       $api_key = reset($api_keys);
       if ($api_key) {
+        $region_name = $api_key->region;
+        $label = isset($regions) && isset($regions[$region_name]) ? $regions[$region_name] : $region_name;
         $regions = [
-          $api_key->region,
+          $region_name => $label,
         ];
 
         $ajax['markup'] = [

@@ -212,7 +212,7 @@ class AmazeeClient implements ClientInterface {
     if ($region_response) {
       foreach ($region_response as $region) {
         if ($region->is_active) {
-          $regions[$region->id] = $region->name;
+          $regions[$region->id] = !empty($region->label) ? $region->label . ' (' . $region->name . ')' : $region->name;
         }
       }
     }
