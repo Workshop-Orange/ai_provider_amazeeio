@@ -245,7 +245,8 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       $api_key = reset($api_keys);
       if ($api_key) {
         $region_name = $api_key->region;
-        $label = isset($regions) && isset($regions[$region_name]) ? $regions[$region_name] : $region_name;
+        $region_label = $api_key->region_label ?? NULL;
+        $label = !empty($region_label) ? $region_label . ' (' . $region_name . ')' : $region_name;
         $regions = [
           $region_name => $label,
         ];
