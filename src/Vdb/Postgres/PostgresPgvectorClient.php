@@ -87,9 +87,7 @@ class PostgresPgvectorClient {
     $rows = pg_fetch_all(result: $result);
 
     $tables = array_map(
-      callback: function ($row) {
-        return $row['tablename'];
-      },
+      callback: fn($row) => $row['tablename'],
       array: $rows
     );
     return $tables;
@@ -304,9 +302,7 @@ class PostgresPgvectorClient {
     $vectors = $this->prepareVectorArrayForSql(vector: $vector_input, connection: $connection);
     // Escape the output fields.
     $escaped_outfield_fields = array_map(
-      callback: function ($field) use ($connection) {
-        return $this->escapeIdentifierForSql(identifier_to_escape: $field, connection: $connection);
-      },
+      callback: fn($field) => $this->escapeIdentifierForSql(identifier_to_escape: $field, connection: $connection),
       array: $output_fields
     );
     $outfield_fields = implode(',', $escaped_outfield_fields);

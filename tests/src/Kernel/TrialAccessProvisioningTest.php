@@ -247,7 +247,7 @@ final class TrialAccessProvisioningTest extends KernelTestBase {
       $factory->create(new NullProgressReporter())->provision();
       self::fail('Provisioning must throw when the API returns HTTP 401.');
     }
-    catch (TrialAccountProvisioningException $e) {
+    catch (TrialAccountProvisioningException) {
       $api_key_entity = Key::load(AmazeeioAiConfigForm::API_KEY_NAME);
       self::assertNotNull(
         $api_key_entity,

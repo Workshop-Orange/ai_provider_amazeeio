@@ -20,23 +20,25 @@ use Symfony\Component\HttpFoundation\ParameterBag;
 class MockHttpClient extends Client {
 
   /**
-   * The decorated http_client service.
-   *
-   * @var \GuzzleHttp\Client
-   */
-  protected Client $innerService;
-
-  /**
    * A state service for simple in-test states.
    */
   protected StateInterface $state;
 
   /**
+   * The inner http client service.
+   */
+  protected Client $innerService;
+
+  /**
    * {@inheritdoc}
    */
-  public function __construct(Client $inner_service, StateInterface $state) {
+  public function __construct(
+    Client $innerService,
+    StateInterface $state,
+  ) {
+    $this->innerService = $innerService;
     $this->state = $state;
-    $this->innerService = $inner_service;
+    parent::__construct();
   }
 
   /**
@@ -238,7 +240,7 @@ class MockHttpClient extends Client {
     if ($err = $this->authorizeAccess($body, $header)) {
       return $err;
     }
-    $key = substr($header->get('Authorization'), strlen('Bearer '));
+    $key = substr((string) $header->get('Authorization'), strlen('Bearer '));
     return $this->success(
       [
         'key' => $key,
@@ -265,7 +267,7 @@ class MockHttpClient extends Client {
     }
     return $this->success(
       [
-        'uppercase' => strtoupper($body->get('message')),
+        'uppercase' => strtoupper((string) $body->get('message')),
       ]
     );
   }
@@ -294,9 +296,10 @@ class MockHttpClient extends Client {
   /**
    * {@inheritdoc}
    */
+  #[\Override]
   public function request($method, $uri = '', array $options = []): ResponseInterface {
     $host = parse_url($uri, PHP_URL_HOST);
-    if (strpos($host, 'amazee') === FALSE) {
+    if (!str_contains($host, 'amazee')) {
       return $this->innerService->get($uri, $options);
     }
 

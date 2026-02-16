@@ -440,7 +440,7 @@ class PostgresProvider extends SearchApiAiVdbProviderBase implements ContainerFa
       // Check if the current condition is actually a nested ConditionGroup.
       if ($condition instanceof ConditionGroupInterface) {
         // Recursively process the nested ConditionGroup.
-        [$outputFilter, $outputJoins] = $this->processConditionGroup($index, $condition, $collection);
+        [$outputFilter, $outputJoins] = $this->processConditionGroup($index, $condition);
         $filters = array_merge($filters, $outputFilter);
         $joins = array_merge($joins, $outputJoins);
         continue;
@@ -520,9 +520,7 @@ class PostgresProvider extends SearchApiAiVdbProviderBase implements ContainerFa
   ): array {
     $successfulItemIds = [];
 
-    $itemIds = array_values(array_map(function ($item) {
-      return $item->getId();
-    }, $items));
+    $itemIds = array_values(array_map(fn($item) => $item->getId(), $items));
 
     // Get the items that are currently being processed, where there was not
     // enough processing budget to handle all chunks.

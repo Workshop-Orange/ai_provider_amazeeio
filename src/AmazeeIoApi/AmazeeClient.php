@@ -188,7 +188,7 @@ class AmazeeClient implements ClientInterface {
       $this->teamId = (int) $response_body->team_id;
       return TRUE;
     }
-    catch (ClientException | GuzzleException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception) {
       return FALSE;
     }
   }

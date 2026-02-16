@@ -232,7 +232,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       try {
         $regions = $this->amazeeClient->getRegions();
       }
-      catch (ClientException $e) {
+      catch (ClientException) {
         $this->messenger->addError($this->t('An error occurred while retrieving the available regions. Please consult the Drupal error log.'));
       }
 
