@@ -19,7 +19,7 @@ For more detailed information, features, and documentation, please visit the off
 
 3. **Configure the Provider**:
    - Navigate to `/admin/config/ai/settings`.
-   - Select "amazee.io" as your AI provider.
+   - Select "amazee.ai" as your AI provider.
    - Type in your email address.
    - Receive a code in your email inbox from amazee, enter this code into the verification field, and submit.
    - You should now be authenticated with the provider module, an amazee.ai LLM key and amazee.ai VectorDB key should exist in the Keys module: `/admin/config/system/keys`

@@ -185,8 +185,9 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     ];
 
     $state = $this->currentState($form_state);
+    $module_path = $this->moduleHandler->getModule('ai_provider_amazeeio')->getPath();
     $form['image'] = [
-      "#markup" => '<p><img src="http://assets.amazee.ai/logo.png" alt="amazee.ai" width="250"/>',
+      '#markup' => '<p><img src="/' . $module_path . '/logo.png" alt="amazee.ai" width="250"/></p>',
     ];
     $ajax = [
       '#prefix' => '<div id="amazee-ai-config-form">',
