@@ -1,7 +1,7 @@
 site_name: Amazee.ai Private AI Provider module for Drupal
 repo_url: https://git.drupalcode.org/project/ai_provider_amazeeio
 repo_name: drupal/ai_provider_amazeeio
-edit_uri: -/tree/1.0.x/docs/
+edit_uri: -/tree/1.3.x/docs/
 theme:
   name: material
   font:
@@ -33,7 +33,7 @@ plugins:
   - mike:
       alias_type: redirect
       # This is for SEO reasons, not redirects.
-      canonical_version: 1.0.x
+      canonical_version: 1.3.x
       version_selector: true
       deploy_prefix: "mkdocs"
 extra:
