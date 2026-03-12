@@ -33,6 +33,7 @@ pages:
     - changes:
         - docs/**/*
         - docs/*
+        - mkdocs.yml
       when: on_success
     - when: never
   script:
