@@ -15,12 +15,24 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\InsertIntoCollectionExcep
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\QuerySearchException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
+use Drupal\Core\Field\TypedData\FieldItemDataDefinitionInterface;
+use Drupal\search_api\Utility\FieldsHelperInterface;
+use Drupal\search_api\Utility\Utility;
 use PgSql\Connection;
 
 /**
  * Provides abstracted Postgres client to interface with pgvector.
  */
 class PostgresPgvectorClient {
+
+  /**
+   * Constructs a new object.
+   *
+   * @param \Drupal\search_api\Utility\FieldsHelperInterface|null $fieldHelper
+   *   Search API's field helper. Nullable, since this class is only in use
+   *   when Search API is enabled.
+   */
+  public function __construct(private readonly ?FieldsHelperInterface $fieldHelper) {}
 
   protected const DATA_TYPE_MAPPING = [
     'integer' => 'INTEGER',
@@ -476,30 +488,48 @@ class PostgresPgvectorClient {
     /** @var \Drupal\search_api\Item\FieldInterface $field */
     foreach ($fields as $field) {
       $field_data_definition = $field->getDataDefinition();
+      if ($field_data_definition instanceof FieldItemDataDefinitionInterface) {
+        $isMultiple = TRUE;
 
-      // Make assumption of basic data type if we can't get more info.
-      if (!method_exists($field_data_definition, 'getFieldDefinition')) {
-        $this->addFieldIfNotExists(FALSE, 'string', $field->getFieldIdentifier(), $collection_name, $connection);
-        continue;
-      }
-      $isMultiple = TRUE;
-
-      $field_definition = $field_data_definition->getFieldDefinition();
-      // Set a default cardinality of 1 in case we can't get more info about it.
-      $field_cardinality = 1;
-      if ($field_definition instanceof BaseFieldDefinition) {
-        $field_cardinality = $field_definition->getCardinality();
+        $field_definition = $field_data_definition->getFieldDefinition();
+        // Set a default cardinality of 1 in case we can't get more info
+        // about it.
+        $field_cardinality = 1;
+        if ($field_definition instanceof BaseFieldDefinition) {
+          $field_cardinality = $field_definition->getCardinality();
+        }
+        else {
+          $field_storage_definition = $field_definition->get('fieldStorage');
+          if ($field_storage_definition instanceof FieldStorageDefinitionInterface) {
+            $field_cardinality = $field_storage_definition->getCardinality();
+          }
+        }
+        if ($field_cardinality === 1) {
+          $isMultiple = FALSE;
+        }
+        $this->addFieldIfNotExists($isMultiple, $field->getType(), $field->getFieldIdentifier(), $collection_name, $connection);
       }
       else {
-        $field_storage_definition = $field_definition->get('fieldStorage');
-        if ($field_storage_definition && $field_storage_definition instanceof FieldStorageDefinitionInterface) {
-          $field_cardinality = $field_storage_definition->getCardinality();
+        [$main_property_name] = Utility::splitPropertyPath($field->getPropertyPath(), FALSE);
+        $main_property = $field->getIndex()->getPropertyDefinitions($field->getDatasourceId())[$main_property_name];
+        // If the main property is a list, its direct data type (e.g., "list")
+        // isn't what we need for the database column. Instead, we need the
+        // data type of the items within that list.
+        if ($main_property->isList()) {
+          $data_type = $this->fieldHelper->retrieveNestedProperty($field->getIndex()->getPropertyDefinitions($field->getDatasourceId()), $field->getPropertyPath())->getDataType();
         }
+        else {
+          // If it's not a list, then the main property's data type is
+          // sufficient.
+          $data_type = $main_property->getDataType();
+        }
+        // The 'search_api_text' type is a Search API internal type, which
+        // for a PostgreSQL database usually corresponds to a 'TEXT' type.
+        if ($data_type === 'search_api_text') {
+          $data_type = 'text';
+        }
+        $this->addFieldIfNotExists($main_property->isList(), $data_type, $field->getFieldIdentifier(), $collection_name, $connection);
       }
-      if ($field_cardinality === 1) {
-        $isMultiple = FALSE;
-      }
-      $this->addFieldIfNotExists($isMultiple, $field->getType(), $field->getFieldIdentifier(), $collection_name, $connection);
     }
   }
 
