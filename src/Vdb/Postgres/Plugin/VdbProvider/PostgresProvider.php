@@ -413,10 +413,14 @@ class PostgresProvider extends SearchApiAiVdbProviderBase implements ContainerFa
     $index = $query->getIndex();
     $condition_group = $query->getConditionGroup();
     [$filters, $joins] = $this->processConditionGroup($index, $condition_group);
-    if ($filters) {
-      return implode(' ', $joins) . ' WHERE ' . implode(' AND ', $filters);
+    if (!$filters) {
+      $filters = [];
     }
-    return '';
+
+    $connection = $this->getConnection($query->getIndex()->getServerInstance()->getBackendConfig()['database_settings']['database_name']);
+    $escaped_index_id = pg_escape_literal($connection, $query->getIndex()->id());
+    $filters[] = 'index_id = ' . $escaped_index_id;
+    return implode(' ', $joins) . ' WHERE ' . implode(' AND ', $filters);
   }
 
   /**
