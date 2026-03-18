@@ -53,7 +53,7 @@ class PostgresPgvectorClient {
       $database = $default_database;
     }
     $connection = pg_connect(
-      connection_string: "host={$host} dbname={$database} port={$port} user={$username} password={$password}"
+      connection_string: "host={$host} dbname={$database} port={$port} user={$username} password={$password} sslmode=require"
     );
     if (!$connection) {
       throw new DatabaseConnectionException(
