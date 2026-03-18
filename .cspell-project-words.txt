@@ -12,4 +12,5 @@ mkdocs
 pgvector
 pymdownx
 schemaname
+sslmode
 vectordb
