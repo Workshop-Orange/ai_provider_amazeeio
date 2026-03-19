@@ -10,6 +10,7 @@ use Drupal\ai_provider_amazeeio\TrialAccess\NullProgressReporter;
 use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisionerFactoryInterface;
 use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisioningException;
 use Drupal\ai_provider_amazeeio\TrialAccess\TrialAccountProvisioningResult;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\State\StateInterface;
 use Drupal\KernelTests\KernelTestBase;
@@ -62,7 +63,7 @@ final class TrialAccessProvisioningTest extends KernelTestBase {
     $this->container->set('http_client', $client);
 
     // Default: authorization succeeds so tests can focus on provisioning steps.
-    $this->container->set('ai_provider_amazeeio.api_client', new class($this->container->get('http_client'), new NullLogger()) extends AmazeeClient {
+    $this->container->set('ai_provider_amazeeio.api_client', new class($this->container->get('http_client'), new NullLogger(), $this->container->get('config.factory')) extends AmazeeClient {
 
       /**
        * {@inheritdoc}
@@ -247,7 +248,7 @@ final class TrialAccessProvisioningTest extends KernelTestBase {
       $factory->create(new NullProgressReporter())->provision();
       self::fail('Provisioning must throw when the API returns HTTP 401.');
     }
-    catch (TrialAccountProvisioningException $e) {
+    catch (TrialAccountProvisioningException) {
       $api_key_entity = Key::load(AmazeeioAiConfigForm::API_KEY_NAME);
       self::assertNotNull(
         $api_key_entity,
@@ -285,10 +286,10 @@ final class TrialAccessProvisioningTest extends KernelTestBase {
       (string) file_get_contents($fixture_path),
     ));
 
-    $this->container->set('ai_provider_amazeeio.api_client', new class($this->container->get('http_client'), new NullLogger()) extends AmazeeClient {
+    $this->container->set('ai_provider_amazeeio.api_client', new class($this->container->get('http_client'), new NullLogger(), $this->container->get('config.factory')) extends AmazeeClient {
 
-      public function __construct(Client $client, LoggerInterface $logger, public bool $authorizedGotCalled = FALSE) {
-        parent::__construct($client, $logger);
+      public function __construct(Client $client, LoggerInterface $logger, ConfigFactoryInterface $configFactory, public bool $authorizedGotCalled = FALSE) {
+        parent::__construct($client, $logger, $configFactory);
       }
 
       /**

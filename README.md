@@ -1,6 +1,6 @@
-# amazee.ai AI Provider
+# amazee.ai Private AI Provider
 
-The **amazee.ai AI Provider** module integrates amazee.ai's AI services into Drupal, providing a seamless bridge between the Drupal AI ecosystem and powerful, data-sovereign AI capabilities.
+The **amazee.ai Private AI Provider** module integrates amazee.ai's AI services into Drupal, providing a seamless bridge between the Drupal AI ecosystem and powerful, private, data-sovereign AI capabilities.
 
 For more detailed information, features, and documentation, please visit the official project page:
 [https://www.drupal.org/project/ai_provider_amazeeio](https://www.drupal.org/project/ai_provider_amazeeio)

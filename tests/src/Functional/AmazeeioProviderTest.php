@@ -80,7 +80,7 @@ class AmazeeioProviderTest extends BrowserTestBase {
   protected function selectRegion(string $label): void {
     $page = $this->getSession()->getPage();
     $page->selectFieldOption('Region', $label);
-    $page->pressButton('Connect');
+    $page->pressButton('Create new key');
     $this->assertSession()->statusCodeEquals(200);
   }
 
@@ -201,6 +201,9 @@ class AmazeeioProviderTest extends BrowserTestBase {
     $dbKey = $keyStorage->load(AmazeeioAiConfigForm::VDB_PASSWORD_NAME);
     $this->assertNull($aiKey);
     $this->assertNull($dbKey);
+
+    // Reset the mock HTTP client state so that we can reconnect.
+    \Drupal::state()->delete('ai_provider_amazeeio_test');
   }
 
   /**

@@ -14,6 +14,7 @@ services:
     arguments:
       $client: '@http_client'
       $logger: '@logger.channel.ai_provider_amazeeio'
+      $configFactory: '@config.factory'
   ai_provider_amazeeio.postgres_client:
     class: Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient
   Drupal\ai_provider_amazeeio\TrialAccess\TrialKeyGenerator:

@@ -4,8 +4,9 @@
   "type": "drupal-module",
   "license": "GPL-2.0-or-later",
   "require": {
-    "drupal/ai": "^1.2",
-    "drupal/search_api": ">1.20"
+    "drupal/ai": "^2.0",
+    "drupal/ai_search": "^2.0",
+    "drupal/search_api": ">=1.20"
   },
   "require-dev": {
     "drupal/config_ignore": "^3.0"

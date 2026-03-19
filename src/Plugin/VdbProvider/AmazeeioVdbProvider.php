@@ -23,6 +23,7 @@ class AmazeeioVdbProvider extends PostgresProvider {
   /**
    * {@inheritdoc}
    */
+  #[\Override]
   public function getConfig(): ImmutableConfig {
     return $this->configFactory->get(name: 'ai_provider_amazeeio.settings');
   }
@@ -38,6 +39,7 @@ class AmazeeioVdbProvider extends PostgresProvider {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
+  #[\Override]
   public function getConnection(?string $database = NULL): PgSql|false {
     $config = $this->getConnectionData();
     return $this->getClient()->getConnection(
@@ -58,8 +60,8 @@ class AmazeeioVdbProvider extends PostgresProvider {
     FormStateInterface $form_state,
     array $configuration,
   ): array {
+    $form = NULL;
     $config = $this->getConfig();
-    $form = parent::buildSettingsForm($form, $form_state, $configuration);
     $form['database_name']['#default_value'] = $configuration['database_settings']['database_name'] ?? $config->get(key: 'postgres_default_database');
     $form['collection']['#default_value'] = $configuration['database_settings']['collection'] ?? 'amazee_ai';
     return $form;
@@ -73,6 +75,7 @@ class AmazeeioVdbProvider extends PostgresProvider {
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
+  #[\Override]
   public function getConnectionData() {
     $config = $this->getConfig();
     $output = [];
@@ -114,6 +117,7 @@ class AmazeeioVdbProvider extends PostgresProvider {
   /**
    * {@inheritDoc}
    */
+  #[\Override]
   public function getClient(): PostgresPgvectorClient {
     return \Drupal::service('ai_provider_amazeeio.postgres_client');
   }

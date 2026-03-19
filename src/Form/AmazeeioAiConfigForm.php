@@ -6,17 +6,21 @@ use Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\ClientInterface;
 use Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider;
 use Drupal\ai\AiProviderPluginManager;
+use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\State\StateInterface;
 use Drupal\Core\TempStore\PrivateTempStore;
 use Drupal\Core\TempStore\PrivateTempStoreFactory;
 use Drupal\key\KeyRepositoryInterface;
+use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Configure amazee.ai AI API access Form.
@@ -26,47 +30,47 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
   /**
    * Config settings.
    */
-  const CONFIG_NAME = 'ai_provider_amazeeio.settings';
+  public const string CONFIG_NAME = 'ai_provider_amazeeio.settings';
 
   /**
    * The known key name for the amazee.ai API key.
    */
-  const API_KEY_NAME = 'amazeeio_ai';
+  public const string API_KEY_NAME = 'amazeeio_ai';
 
   /**
    * The known key name for the amazee.ai database password.
    */
-  const VDB_PASSWORD_NAME = 'amazeeio_ai_database';
+  public const string VDB_PASSWORD_NAME = 'amazeeio_ai_database';
 
   /**
    * The default Postgres port.
    */
-  const POSTGRES_PORT_DEFAULT = 5432;
+  public const int POSTGRES_PORT_DEFAULT = 5432;
 
   /**
    * Not connected to amazee.ai.
    */
-  const STATE_DISCONNECTED = 'disconnected';
+  public const string STATE_DISCONNECTED = 'disconnected';
 
   /**
    * Email address has been entered, waiting for  verification code.
    */
-  const STATE_VERIFICATION = 'validation';
+  public const string STATE_VERIFICATION = 'validation';
 
   /**
    * Email verification successful, region selection.
    */
-  const STATE_VERIFIED = 'validated';
+  public const string STATE_VERIFIED = 'validated';
 
   /**
    * Region has been selected, keys are generated, everything is set up.
    */
-  const STATE_CONNECTED = 'connected';
+  public const string STATE_CONNECTED = 'connected';
 
   /**
    * Show a confirmation step before disconnecting.
    */
-  const STATE_CONFIRM_DISCONNECT = 'confirm_disconnect';
+  public const string STATE_CONFIRM_DISCONNECT = 'confirm_disconnect';
 
   /**
    * Constructs a new AmazeeioAiConfigForm object.
@@ -80,8 +84,13 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     protected PrivateTempStoreFactory $tempStoreFactory,
     protected EntityTypeManagerInterface $entityTypeManager,
     protected ModuleHandlerInterface $moduleHandler,
+    protected Client $httpClient,
+    protected CacheBackendInterface $cacheDefault,
+    RequestStack $requestStack,
+    protected StateInterface $state,
   ) {
     parent::__construct($configFactory, $typedConfigManager);
+    $this->requestStack = $requestStack;
     $this->amazeeClient->setHost(AmazeeClient::AMAZEE_API_HOST);
     $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
   }
@@ -98,7 +107,11 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       $container->get('ai_provider_amazeeio.api_client'),
       $container->get('tempstore.private'),
       $container->get('entity_type.manager'),
-      $container->get('module_handler')
+      $container->get('module_handler'),
+      $container->get('http_client'),
+      $container->get('cache.default'),
+      $container->get('request_stack'),
+      $container->get('state')
     );
   }
 
@@ -112,8 +125,178 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    *   The key value, or NULL if the key is not found.
    */
   private function getKeyValue(string $key_name): ?string {
-    $key = $this->keyRepository->getKey($key_name);
-    return $key ? $key->getKeyValue() : NULL;
+    return $this->keyRepository->getKey($key_name)?->getKeyValue();
+  }
+
+  /**
+   * Check the health status of the LLM host.
+   *
+   * @return array
+   *   Array with 'status' (bool), 'message' (string),
+   *   and 'checked_at' (string).
+   */
+  private function checkLlmHealth(): array {
+    $config = $this->configFactory->get(static::CONFIG_NAME);
+    $host = $config->get('host');
+    $apiKey = $this->getKeyValue(static::API_KEY_NAME);
+
+    if (empty($host) || empty($apiKey)) {
+      return [
+        'status' => FALSE,
+        'message' => $this->t('LLM host or API key not configured'),
+        'checked_at' => '',
+        'litellm_version' => '',
+      ];
+    }
+
+    $cacheId = 'amazeeio_llm_health_status';
+    $cache = $this->cacheDefault->get($cacheId);
+
+    if ($cache !== FALSE && !$this->isForceRefresh()) {
+      return $cache->data;
+    }
+
+    try {
+      $response = $this->httpClient->get($host . '/health/liveliness', [
+        'headers' => [
+          'Authorization' => "Bearer $apiKey",
+          'Content-Type' => 'application/json',
+        ],
+        'timeout' => 5,
+      ]);
+
+      $statusCode = $response->getStatusCode();
+      $body = (string) $response->getBody();
+      $isHealthy = $statusCode === 200 && str_contains($body, "I'm alive!");
+
+      // Try to get LiteLLM version.
+      $liteLlmVersion = '';
+      try {
+        $openapiResponse = $this->httpClient->get($host . '/openapi.json', [
+          'headers' => [
+            'Authorization' => "Bearer $apiKey",
+            'Content-Type' => 'application/json',
+          ],
+          'timeout' => 3,
+        ]);
+        $openapiData = json_decode((string) $openapiResponse->getBody(), TRUE);
+        $liteLlmVersion = $openapiData['info']['version'] ?? '';
+      }
+      catch (\Exception) {
+        // Silently fail if version cannot be fetched.
+      }
+
+      $result = [
+        'status' => $isHealthy,
+        'message' => $isHealthy ? $this->t('Online') : $this->t('Offline (unexpected response)'),
+        'checked_at' => date('Y-m-d H:i:s'),
+        'litellm_version' => $liteLlmVersion,
+      ];
+    }
+    catch (\Exception $e) {
+      $result = [
+        'status' => FALSE,
+        'message' => $this->t('Offline (@error)', ['@error' => $e->getMessage()]),
+        'checked_at' => date('Y-m-d H:i:s'),
+        'litellm_version' => '',
+      ];
+    }
+
+    $this->cacheDefault->set($cacheId, $result, time() + 10);
+
+    return $result;
+  }
+
+  /**
+   * Check if a health refresh was requested.
+   *
+   * @return bool
+   *   TRUE if refresh was requested.
+   */
+  private function isForceRefresh(): bool {
+    return (bool) $this->requestStack->getCurrentRequest()->query->get('health_refresh', FALSE);
+  }
+
+  /**
+   * Fetch available models from the LLM host.
+   *
+   * @return array
+   *   Array of model data with id, token cost, and description.
+   */
+  private function getLlmHostModels(): array {
+    $config = $this->configFactory->get(static::CONFIG_NAME);
+    $host = $config->get('host');
+    $apiKey = $this->getKeyValue(static::API_KEY_NAME);
+
+    if (empty($host) || empty($apiKey)) {
+      return ['error' => $this->t('LLM host or API key not configured')];
+    }
+
+    $cacheId = 'amazeeio_llm_models';
+    $cache = $this->cacheDefault->get($cacheId);
+
+    if ($cache !== FALSE) {
+      return $cache->data;
+    }
+
+    try {
+      $response = $this->httpClient->get($host . '/models', [
+        'headers' => [
+          'Authorization' => "Bearer $apiKey",
+          'Content-Type' => 'application/json',
+        ],
+      ]);
+
+      $data = json_decode((string) $response->getBody(), TRUE);
+
+      if (empty($data['data']) || !\is_array($data['data'])) {
+        $result = ['error' => $this->t('No models returned from LLM host')];
+        $this->cacheDefault->set($cacheId, $result, time() + 300);
+        return $result;
+      }
+
+      $models = [];
+      foreach ($data['data'] as $model) {
+        $models[] = [
+          'id' => $model['id'] ?? '',
+          'token_cost' => $this->formatTokenCost($model['pricing'] ?? []),
+          'description' => $model['description'] ?? '',
+        ];
+      }
+
+      $this->cacheDefault->set($cacheId, $models, time() + 300);
+      return $models;
+    }
+    catch (\Exception $e) {
+      $result = ['error' => $this->t('Failed to fetch models: @error', ['@error' => $e->getMessage()])];
+      $this->cacheDefault->set($cacheId, $result, time() + 60);
+      return $result;
+    }
+  }
+
+  /**
+   * Format token cost from pricing data.
+   *
+   * @param array $pricing
+   *   The pricing array from the model data.
+   *
+   * @return string
+   *   Formatted token cost string.
+   */
+  private function formatTokenCost(array $pricing): string {
+    if (empty($pricing)) {
+      return '-';
+    }
+
+    $parts = [];
+    if (isset($pricing['prompt'])) {
+      $parts[] = 'Prompt: ' . $pricing['prompt'];
+    }
+    if (isset($pricing['completion'])) {
+      $parts[] = 'Completion: ' . $pricing['completion'];
+    }
+
+    return !empty($parts) ? implode(', ', $parts) : '-';
   }
 
   /**
@@ -170,6 +353,12 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
+    // Attach the AI global library for consistent styling.
+    $form['#attached']['library'][] = 'ai/ai_global';
+
+    // Attach the module's CSS for table styling.
+    $form['#attached']['library'][] = 'ai_provider_amazeeio/ai_provider_amazeeio';
+
     // Get the configuration with overrides.
     $config = $this->configFactory->get(static::CONFIG_NAME);
 
@@ -185,6 +374,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     ];
 
     $state = $this->currentState($form_state);
+
     $module_path = $this->moduleHandler->getModule('ai_provider_amazeeio')->getPath();
     $form['image'] = [
       '#markup' => '<p><img src="/' . $module_path . '/logo.png" alt="amazee.ai" width="250"/></p>',
@@ -196,7 +386,9 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
 
     if ($state === static::STATE_DISCONNECTED) {
       $ajax['markup'] = [
-        '#markup' => '<p><em>' . $this->t("Let's get you started! Enter your email address and we'll send you a code to sign in to <strong>amazee.ai</strong>.") . '</em></p>',
+        '#type' => 'html_tag',
+        '#tag' => 'p',
+        '#value' => $this->t("Let's get you started! Enter your email address and we'll send you a code to sign in to <strong>amazee.ai</strong>."),
       ];
       $ajax['email'] = [
         // When in 'test mode' we use a simple text field, so the BrowserTest
@@ -215,7 +407,9 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
 
     if ($state === static::STATE_VERIFICATION) {
       $ajax['markup'] = [
-        '#markup' => '<p><em>' . $this->t('Check your inbox. Enter the verification code we just sent to your email.') . '</em></p>',
+        '#type' => 'html_tag',
+        '#tag' => 'p',
+        '#value' => $this->t('Check your inbox. Enter the verification code we just sent to your email.'),
       ];
       $ajax['code'] = [
         '#type' => 'textfield',
@@ -234,33 +428,88 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         $regions = $this->amazeeClient->getRegions();
       }
       catch (ClientException $e) {
-        $this->messenger->addError($this->t('An error occurred while retrieving the available regions. Please consult the Drupal error log.'));
+        $response = $e->getResponse();
+        $response_body = json_decode((string) $response->getBody(), TRUE);
+        $error_message = $response_body['detail'] ?? $e->getMessage();
+        $this->messenger()->addError($this->t('An error occurred while retrieving the available regions. @error. Please consult the Drupal error log for full details.', ['@error' => rtrim($error_message, '.')]));
       }
 
-      // Check if we already have a key.
+      // Check if we already have a key for this host.
       $key_name = static::generatePrivateKeyName();
       $api_keys = array_filter(
         $this->amazeeClient->getPrivateApiKeys(),
         fn($key) => $key->name === $key_name
       );
       $api_key = reset($api_keys);
+      $all_api_keys = $this->amazeeClient->getPrivateApiKeys();
+
       if ($api_key) {
-        $region_name = $api_key->region;
-        $region_label = $api_key->region_label ?? NULL;
-        $label = !empty($region_label) ? $region_label . ' (' . $region_name . ')' : $region_name;
-        $regions = [
-          $region_name => $label,
+        $ajax['markup'] = [
+          '#type' => 'html_tag',
+          '#tag' => 'p',
+          '#value' => $this->t('We found an existing key for this host <em>@host</em>.', ['@host' => static::generatePrivateKeyName()]),
+        ];
+      }
+
+      $email = $this->getTempStore()->get('email');
+      if ($email && !empty($all_api_keys)) {
+        $note_markup = $this->t('Here are all of the keys found for your account <em>@email</em>:', ['@email' => $email]);
+
+        $ajax['keys_note'] = [
+          '#type' => 'html_tag',
+          '#tag' => 'p',
+          '#value' => $note_markup,
         ];
 
-        $ajax['markup'] = [
-          '#markup' => '<p><em>' . $this->t('We found an existing key for this host (@host) with the following region.', ['@host' => static::generatePrivateKeyName()]) . '</em></p>',
+        $header = [
+          'name' => $this->t('Name'),
+          'region' => $this->t('Region'),
+          'url' => $this->t('URL'),
+        ];
+
+        $options = [];
+        foreach ($all_api_keys as $index => $key) {
+          $key_region = !empty($key->region_label) ? $key->region_label . ' (' . $key->region . ')' : $key->region;
+          $key_url = $key->litellm_api_url ?? '-';
+
+          $options[$index] = [
+            'name' => $key->name,
+            'region' => $key_region,
+            'url' => $key_url,
+          ];
+        }
+
+        $ajax['selected_key'] = [
+          '#type' => 'tableselect',
+          '#header' => $header,
+          '#options' => $options,
+          '#multiple' => FALSE,
+          '#empty' => $this->t('No keys found'),
+          '#attributes' => ['class' => ['ai-keys-table']],
+        ];
+
+        $ajax['use_selected_key'] = [
+          '#type' => 'submit',
+          '#value' => $this->t('Use selected key'),
+          '#name' => 'use_selected_key',
+          '#access' => !empty($all_api_keys),
+          '#attributes' => ['class' => ['button', 'button--primary']],
+          '#submit' => ['::submitUseSelectedKey', '::submitForm'],
         ];
       }
-      else {
-        $ajax['markup'] = [
-          '#markup' => '<p><em>' . $this->t('Choose where your AI features will be hosted.') . '</em></p>',
-        ];
-      }
+
+      $ajax['markup_new'] = [
+        '#type' => 'html_tag',
+        '#tag' => 'p',
+        '#value' => $this->t('Or create a new key:'),
+      ];
+
+      $ajax['key_name'] = [
+        '#type' => 'textfield',
+        '#title' => $this->t('Key Name'),
+        '#default_value' => static::generatePrivateKeyName(),
+        '#title_display' => 'before',
+      ];
 
       $ajax['region'] = [
         '#type' => 'select',
@@ -271,19 +520,21 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       ];
       $ajax['submit_region'] = [
         '#type' => 'submit',
-        '#value' => $this->t('Connect'),
+        '#value' => $this->t('Create new key'),
+        '#name' => 'submit_region',
         '#access' => !empty($regions),
         '#attributes' => ['class' => ['button', 'button--primary']],
+        '#submit' => ['::submitCreateNewKey', '::submitForm'],
       ];
     }
 
     if ($state === static::STATE_CONNECTED) {
       // Check if we're using a Trial Account.
-      $trial_account = \Drupal::state()->get('ai_provider_amazeeio.trial_account');
+      $trial_account = $this->state->get('ai_provider_amazeeio.trial_account');
 
       if ($trial_account) {
         $ajax['trial_account_message'] = [
-          '#markup' => '<p>' .
+          '#markup' => '<p class="ai-text-muted ai-description">' .
           $this->t('You are currently using a free anonymous trial account.') . ' ' .
           $this->t('This account has a very limited budget.') . ' ' .
           $this->t('You may want to disconnect and connect with a full user account.') .
@@ -291,45 +542,53 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         ];
       }
 
-      $ajax['submit_disconnect'] = [
-        '#type' => 'submit',
-        '#value' => $this->t('Disconnect'),
-        '#attributes' => ['class' => ['button', 'button--danger']],
+      $health = $this->checkLlmHealth();
+      $host = $config->get('host');
+
+      // Prepare dashboard elements that need to be within the form tree
+      // (like submit buttons) to ensure their callbacks function correctly.
+      $ajax['dashboard'] = [
+        '#theme' => 'amazeeio_ai_dashboard',
+        '#health' => $health,
+        '#models' => (empty($host) || !$this->getKeyValue(static::API_KEY_NAME)) ? [] : $this->getLlmHostModels(),
+        '#host' => $host,
+        '#database' => $config->get('postgres_default_database'),
+        '#key_name' => static::generatePrivateKeyName(),
+        '#trial_account' => $this->state->get('ai_provider_amazeeio.trial_account'),
+        'submit_disconnect' => [
+          '#type' => 'submit',
+          '#value' => $this->t('Disconnect'),
+          '#attributes' => ['class' => ['button', 'button--danger']],
+        ],
+        'health_refresh' => [
+          '#type' => 'submit',
+          '#value' => $this->t('Check Health'),
+          '#submit' => ['::submitHealthRefresh'],
+          '#attributes' => ['class' => ['button', 'button--secondary']],
+        ],
       ];
 
-      $host = $config->get('host');
-      if (!(empty($host) || !$this->getKeyValue(static::API_KEY_NAME))) {
-        $ajax['usage'] = [
-          '#theme' => 'table',
-          '#rows' => [],
-          '#weight' => 20,
+      // Because the "models" are evaluated above, we handle the refresh logic
+      // conditionally without needing to rewrite logic.
+      if (isset($ajax['dashboard']['#models']['error'])) {
+        $ajax['dashboard']['refresh'] = [
+          '#type' => 'submit',
+          '#value' => $this->t('Refresh Models'),
+          '#submit' => ['::submitModelsRefresh'],
+          '#attributes' => ['class' => ['button', 'button--secondary']],
         ];
-
-        // Show the key name (hostname)
-        $ajax['usage']['#rows'][] = [
-          $this->t('Name'),
-          static::generatePrivateKeyName(),
-        ];
-
-        if ($database = $config->get('postgres_default_database')) {
-          $ajax['usage']['#rows'][] = [
-            $this->t('VectorDB Database'),
-            $database,
-          ];
-        }
-
-        foreach ($ajax['usage']['#rows'] as &$row) {
-          $row[0] = [
-            'data' => ['#markup' => $row[0]],
-            'header' => TRUE,
-          ];
-        }
+      }
+      elseif ($ajax['dashboard']['#models']) {
+        // Sort models as previously done for neatness in table rendering.
+        usort($ajax['dashboard']['#models'], fn($a, $b) => strcmp($a['id'], $b['id']));
       }
     }
 
     if ($state === static::STATE_CONFIRM_DISCONNECT) {
       $ajax['markup'] = [
-        '#markup' => '<p><em>' . $this->t('Are you sure you want to disconnect from <strong>amazee.ai</strong>?') . '</em></p>',
+        '#type' => 'html_tag',
+        '#tag' => 'p',
+        '#value' => $this->t('Are you sure you want to disconnect from <strong>amazee.ai</strong>?'),
       ];
       $ajax['submit_confirm_disconnect'] = [
         '#type' => 'submit',
@@ -352,7 +611,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
   /**
    * Ajax callback to dynamically update the form.
    */
-  public static function ajaxUpdate(array &$form, FormStateInterface $form_state) {
+  public static function ajaxUpdate(array &$form, FormStateInterface $form_state): array {
     return $form['ajax'];
   }
 
@@ -380,6 +639,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       $token = $this->amazeeClient->validateCode($email, $code);
       if ($token) {
         $this->getTempStore()->set('access_token', $token);
+        $this->getTempStore()->set('email', $email);
         $form_state->set('state', static::STATE_VERIFIED);
       }
       else {
@@ -388,29 +648,64 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     }
 
     if ($state === static::STATE_VERIFIED) {
+      $action = $form_state->get('action');
       $region = $form_state->getValue('region');
-      $key_name = static::generatePrivateKeyName();
-      $api_keys = array_filter(
-        $this->amazeeClient->getPrivateApiKeys(),
-        fn($key) => $key->name === $key_name
-      );
-      if (count($api_keys) > 0) {
-        // Return now to not rebuild the form but submit it.
-        return;
-      }
-      else {
-        $private_key = $this->amazeeClient->createPrivateAiKey(
-          $region,
-          static::generatePrivateKeyName(),
-          $this->amazeeClient->getTeamId()
-        );
-        if (!$private_key) {
-          $form_state->setErrorByName('region', $this->t('An error occurred while generating the private key. Please consult the Drupal error log.'));
-        }
-        else {
-          // Return now to not rebuild the form but submit it.
+      $key_name = $form_state->getValue('key_name');
+      $all_api_keys = $this->amazeeClient->getPrivateApiKeys();
+      $element = $form_state->getTriggeringElement();
+      $triggeringName = $element['#name'] ?? '';
+
+      // Handle "Use selected key" action.
+      if ($action === 'use_selected_key' || $triggeringName === 'use_selected_key') {
+        $selected_key = $form_state->getValue('selected_key');
+        if ($selected_key !== NULL && isset($all_api_keys[$selected_key])) {
+          $form_state->set('selected_key_index', $selected_key);
+          $form_state->set('selected_key_name', $all_api_keys[$selected_key]->name);
           return;
         }
+        else {
+          $form_state->setErrorByName('selected_key', $this->t('Please select a key from the table.'));
+          $form_state->setRebuild();
+          return;
+        }
+      }
+
+      // Handle "Create new key" action (button click or Enter key in new key
+      // fields).
+      if ($action === 'create_new_key' || $triggeringName === 'key_name' || $triggeringName === 'region' || $triggeringName === 'submit_region') {
+        if (empty($key_name)) {
+          $form_state->setErrorByName('key_name', $this->t('Please enter a key name.'));
+          $form_state->setRebuild();
+          return;
+        }
+
+        try {
+          $private_key = $this->amazeeClient->createPrivateAiKey(
+            $region,
+            $key_name,
+            $this->amazeeClient->getTeamId()
+          );
+        }
+        catch (ClientException $e) {
+          $response = $e->getResponse();
+          $response_body = json_decode((string) $response->getBody(), TRUE);
+          $error_message = $response_body['detail'] ?? $e->getMessage();
+          $form_state->setErrorByName('region', $this->t('An error occurred while generating the private key. @error. Please consult the Drupal error log for full details.', ['@error' => rtrim($error_message, '.')]));
+          return;
+        }
+
+        if (!$private_key) {
+          $form_state->setErrorByName('region', $this->t('An error occurred while generating the private key. Please consult the Drupal error log for full details.'));
+        }
+        else {
+          $form_state->set('created_new_key', TRUE);
+          return;
+        }
+      }
+
+      // Default: require region selection.
+      if (empty($region)) {
+        $form_state->setErrorByName('region', $this->t('Please select a region.'));
       }
     }
 
@@ -453,12 +748,42 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       $config = $this->config(static::CONFIG_NAME);
       $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
       $this->amazeeClient->setHost($config->get('host') ?? '');
-      $key_name = static::generatePrivateKeyName();
-      $api_keys = array_filter(
-        $this->amazeeClient->getPrivateApiKeys(),
-        fn($key) => $key->name === $key_name
-      );
-      $api_key = reset($api_keys);
+
+      // Check if user selected an existing key.
+      $selected_key_index = $form_state->get('selected_key_index');
+      $selected_key_name = $form_state->get('selected_key_name');
+      $created_new_key = $form_state->get('created_new_key');
+      $all_api_keys = $this->amazeeClient->getPrivateApiKeys();
+
+      if ($selected_key_name) {
+        // Find key by name (more reliable than index).
+        $api_keys = array_filter(
+          $all_api_keys,
+          fn($key) => $key->name === $selected_key_name
+        );
+        $api_key = reset($api_keys);
+      }
+      elseif ($selected_key_index !== NULL && isset($all_api_keys[$selected_key_index])) {
+        $api_key = $all_api_keys[$selected_key_index];
+      }
+      elseif ($created_new_key) {
+        // Use the newly created key (most recent one with matching name).
+        $key_name = $form_state->getValue('key_name');
+        $api_keys = array_filter(
+          $all_api_keys,
+          fn($key) => $key->name === $key_name
+        );
+        $api_key = end($api_keys);
+      }
+      else {
+        // Fall back to finding key by hostname.
+        $key_name = static::generatePrivateKeyName();
+        $api_keys = array_filter(
+          $all_api_keys,
+          fn($key) => $key->name === $key_name
+        );
+        $api_key = reset($api_keys);
+      }
 
       if ($api_key) {
         // Set the provider config, using a known key name to ease support
@@ -570,7 +895,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       }
 
       // Ensure Drupal State for trial account is removed too.
-      \Drupal::state()->delete('ai_provider_amazeeio.trial_account');
+      $this->state->delete('ai_provider_amazeeio.trial_account');
 
       $this->messenger()->addWarning($this->t('This website has been disconnected from <strong>amazee.ai</strong>.'));
     }
@@ -584,6 +909,56 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    */
   protected function getTempStore(): PrivateTempStore {
     return $this->tempStoreFactory->get('amazeeio_ai');
+  }
+
+  /**
+   * Submit handler for the health refresh button.
+   *
+   * @param array &$form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public function submitHealthRefresh(array &$form, FormStateInterface $form_state): void {
+    $this->cacheDefault->delete('amazeeio_llm_health_status');
+    $form_state->setRebuild();
+  }
+
+  /**
+   * Submit handler for the models refresh button.
+   *
+   * @param array &$form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public function submitModelsRefresh(array &$form, FormStateInterface $form_state): void {
+    $this->cacheDefault->delete('amazeeio_llm_models');
+    $form_state->setRebuild();
+  }
+
+  /**
+   * Submit handler for "Use selected key" button.
+   *
+   * @param array &$form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public function submitUseSelectedKey(array &$form, FormStateInterface $form_state): void {
+    $form_state->set('action', 'use_selected_key');
+  }
+
+  /**
+   * Submit handler for "Create new key" button.
+   *
+   * @param array &$form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public function submitCreateNewKey(array &$form, FormStateInterface $form_state): void {
+    $form_state->set('action', 'create_new_key');
   }
 
 }

@@ -1,0 +1,10 @@
+ai_provider_amazeeio:
+  version: 1.x
+  css:
+    component:
+      css/ai-provider-amazeeio.css: {}
+  js:
+    js/ai-provider-amazeeio.js: {}
+  dependencies:
+    - core/drupal
+    - core/once

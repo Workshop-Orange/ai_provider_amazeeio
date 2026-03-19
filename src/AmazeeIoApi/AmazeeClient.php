@@ -2,6 +2,7 @@
 
 namespace Drupal\ai_provider_amazeeio\AmazeeIoApi;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\ai_provider_amazeeio\DTO\Model;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
@@ -50,12 +51,15 @@ class AmazeeClient implements ClientInterface {
    *   A Guzzle client to use for requests.
    * @param \Psr\Log\LoggerInterface $logger
    *   The logger.
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
+   *   The config factory.
    */
   public function __construct(
     protected Client $client,
     protected LoggerInterface $logger,
+    protected ConfigFactoryInterface $configFactory,
   ) {
-    $config = \Drupal::config('ai_provider_amazeeio.settings');
+    $config = $this->configFactory->get('ai_provider_amazeeio.settings');
     $this->host = $config->get('host') ?? '';
   }
 
@@ -188,7 +192,7 @@ class AmazeeClient implements ClientInterface {
       $this->teamId = (int) $response_body->team_id;
       return TRUE;
     }
-    catch (ClientException | GuzzleException | \Exception $e) {
+    catch (ClientException | GuzzleException | \Exception) {
       return FALSE;
     }
   }
@@ -256,7 +260,11 @@ class AmazeeClient implements ClientInterface {
       }
       $response = $this->makeRequest('POST', '/private-ai-keys', $body);
     }
-    catch (ClientException | GuzzleException | \Exception $e) {
+    catch (ClientException $e) {
+      $this->logger->error('Failed to create private key amazee.ai: @error', ['@error' => $e->getMessage()]);
+      throw $e;
+    }
+    catch (GuzzleException | \Exception $e) {
       $this->logger->error('Failed to create private key amazee.ai: @error', ['@error' => $e->getMessage()]);
       return [];
     }

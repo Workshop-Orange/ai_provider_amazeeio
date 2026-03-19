@@ -63,6 +63,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
       $this->amazeeClient = new AmazeeClient(
         $this->httpClient,
         $this->logger,
+        $this->configFactory,
       );
       $host = $this->amazeeClient->getHost();
       $this->setEndpoint($host);
@@ -235,7 +236,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
       $this->loadClient();
       $models = $this->amazeeClient->models();
     }
-    catch (\Exception $e) {
+    catch (\Exception) {
       $models = [];
     }
 
@@ -265,8 +266,8 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
   /**
    * {@inheritdoc}
    */
-  public function handleApiException(\Exception $e): void {
-    if (strpos($e->getMessage(), 'Budget has been exceeded!') !== FALSE) {
+  public function handleApiException(\Throwable $e): void {
+    if (str_contains($e->getMessage(), 'Budget has been exceeded!')) {
       $message = 'Your budget has been exceeded!';
 
       if ($this->state->get('ai_provider_amazeeio.trial_account')) {

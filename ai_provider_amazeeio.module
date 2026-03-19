@@ -18,6 +18,17 @@ use Drupal\search_api\IndexInterface;
 use Drupal\user\UserInterface;
 
 /**
+ * Implements hook_theme().
+ */
+function ai_provider_amazeeio_theme(): array {
+  return [
+    'amazeeio_ai_dashboard' => [
+      'render element' => 'element',
+    ],
+  ];
+}
+
+/**
  * Implements hook_search_api_index_update().
  *
  * When the search API index is updated, check the fields are correctly
@@ -168,4 +179,22 @@ function ai_provider_amazeeio_config_ignore_ignored_alter(ConfigIgnoreConfig $co
   }
 
   $config->mergeWith(new ConfigIgnoreConfig('simple', $config_list));
+}
+
+/**
+ * Prepares variables for the amazeeio_ai_dashboard template.
+ */
+function template_preprocess_amazeeio_ai_dashboard(array &$variables): void {
+  $element = $variables['element'];
+  $variables['health'] = $element['#health'] ?? [];
+  $variables['models'] = $element['#models'] ?? [];
+  $variables['host'] = $element['#host'] ?? '';
+  $variables['database'] = $element['#database'] ?? '';
+  $variables['key_name'] = $element['#key_name'] ?? '';
+  $variables['trial_account'] = $element['#trial_account'] ?? FALSE;
+
+  // Variables for the interactive buttons so Twig can render them securely.
+  $variables['submit_disconnect'] = $element['submit_disconnect'] ?? [];
+  $variables['health_refresh'] = $element['health_refresh'] ?? [];
+  $variables['refresh'] = $element['refresh'] ?? [];
 }
