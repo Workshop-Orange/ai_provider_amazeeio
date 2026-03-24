@@ -2,12 +2,13 @@
 
 namespace Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider;
 
-use Drupal\ai_search\Plugin\Exception\EmbeddingStrategyException;
-use Drupal\ai_search\SearchApiAiVdbProviderBase;
+use Drupal\ai\Base\AiVdbProviderClientBase;
+use Drupal\Core\Database\Connection as DrupalConnection;
+use Drupal\Core\Messenger\MessengerInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Component\Plugin\DependentPluginInterface;
 use Drupal\key\KeyRepositoryInterface;
 use PgSql\Connection;
-use Drupal\ai\Base\AiVdbProviderClientBase;
 use Drupal\ai\Enum\VdbSimilarityMetrics;
 use Drupal\ai\Exception\AiUnsafePromptException;
 use Drupal\ai_search\EmbeddingStrategyInterface;
@@ -28,7 +29,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 /**
  * Base Plugin implementation of the 'Postgres amazee.ai vector DB' provider.
  */
-class PostgresProvider extends SearchApiAiVdbProviderBase implements ContainerFactoryPluginInterface, DependentPluginInterface {
+class PostgresProvider extends AiVdbProviderClientBase implements ContainerFactoryPluginInterface, DependentPluginInterface {
 
   use StringTranslationTrait;
   // Use the LoggerChannelTrait instead of dependency injection because parent
@@ -52,11 +53,48 @@ class PostgresProvider extends SearchApiAiVdbProviderBase implements ContainerFa
   protected KeyRepositoryInterface $keyRepository;
 
   /**
+   * The config factory.
+   */
+  protected ConfigFactoryInterface $configFactory;
+
+  /**
+   * The messenger.
+   */
+  protected MessengerInterface $messenger;
+
+  /**
+   * The database connection.
+   */
+  protected DrupalConnection $database;
+
+  /**
+   * The configuration.
+   *
+   * @var array
+   */
+  protected array $configuration;
+
+  /**
+   * The embedding validator.
+   *
+   * @var mixed
+   */
+  protected $embeddingValidator;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): AiVdbProviderClientBase|static {
     $instance = parent::create($container, $configuration, $plugin_id, $plugin_definition);
     $instance->keyRepository = $container->get('key.repository');
+    $instance->configFactory = $container->get('config.factory');
+    $instance->messenger = $container->get('messenger');
+    $instance->database = $container->get('database');
+    // The embedding validator might be named differently in 1.x, but this is
+    // the most likely name given the 2.x code.
+    if ($container->has('ai.embedding.validator')) {
+      $instance->embeddingValidator = $container->get('ai.embedding.validator');
+    }
     return $instance;
   }
 
@@ -625,7 +663,7 @@ class PostgresProvider extends SearchApiAiVdbProviderBase implements ContainerFa
         // EmbeddingStrategyInterface.
         $violations = $this->embeddingValidator->validate($embedding);
         if (count($violations) > 0) {
-          throw new EmbeddingStrategyException("The embedding object must be valid: \n$violations");
+          throw new \Exception("The embedding object must be valid: \n$violations");
         }
 
         // Merge the base array structure with the individual chunk array
@@ -671,6 +709,32 @@ class PostgresProvider extends SearchApiAiVdbProviderBase implements ContainerFa
         'ai_provider_amazeeio.settings',
       ],
     ];
+  }
+
+  /**
+   * Check if a field is multiple.
+   */
+  public function isMultiple($field): bool {
+    $field_definition = $field->getDataDefinition();
+    if (method_exists($field_definition, 'getFieldDefinition')) {
+      $storage = $field_definition->getFieldDefinition()->getFieldStorageDefinition();
+      return $storage->getCardinality() !== 1;
+    }
+    return FALSE;
+  }
+
+  /**
+   * Delete items from the index.
+   */
+  public function deleteIndexItems(array $configuration, IndexInterface $index, array $item_ids): void {
+    $this->deleteItems($configuration, $item_ids);
+  }
+
+  /**
+   * Get the maximum number of chunks to process per index run.
+   */
+  protected function getMaximumChunksPerIndexItems(): int {
+    return 100;
   }
 
 }
