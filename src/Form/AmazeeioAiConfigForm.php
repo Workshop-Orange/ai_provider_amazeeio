@@ -376,8 +376,10 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     $state = $this->currentState($form_state);
 
     $module_path = $this->moduleHandler->getModule('ai_provider_amazeeio')->getPath();
+    $logo_path = '/' . $module_path . '/logo.png';
     $form['image'] = [
-      '#markup' => '<p><img src="/' . $module_path . '/logo.png" alt="amazee.ai" width="250"/></p>',
+      '#markup' => '<p><img src="' . $logo_path . '" alt="amazee.ai" width="250"/></p>',
+      '#access' => $state !== static::STATE_CONNECTED,
     ];
     $ajax = [
       '#prefix' => '<div id="amazee-ai-config-form">',
@@ -549,6 +551,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       // (like submit buttons) to ensure their callbacks function correctly.
       $ajax['dashboard'] = [
         '#theme' => 'amazeeio_ai_dashboard',
+        '#logo' => $logo_path,
         '#health' => $health,
         '#models' => (empty($host) || !$this->getKeyValue(static::API_KEY_NAME)) ? [] : $this->getLlmHostModels(),
         '#host' => $host,

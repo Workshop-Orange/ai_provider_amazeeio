@@ -20,7 +20,9 @@
 <div class="ai-connected-layout">
   <div class="ai-top-layout">
     <div class="ai-top-left">
-      <img src="http://assets.amazee.ai/logo.png" alt="amazee.ai" width="250"/>
+      {% if logo %}
+        <img src="{{ logo }}" alt="amazee.ai" width="250"/>
+      {% endif %}
       {{ submit_disconnect }}
     </div>
     <div class="ai-top-right">
