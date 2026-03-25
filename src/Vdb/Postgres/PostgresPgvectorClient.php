@@ -575,8 +575,9 @@ class PostgresPgvectorClient {
       connection: $connection,
     );
     // Prepare entries for relation table.
-    $relation_table_fields = [];
     $escaped_relation_table_name = $this->getRelationTableName($collection_name, $field_name, $connection);
+
+    $field_values_to_insert = [];
     if (!is_array($field_data['value'])) {
       $field_data['value'] = [$field_data['value']];
     }
@@ -584,22 +585,14 @@ class PostgresPgvectorClient {
       if (empty($value)) {
         continue;
       }
-      $relation_table_fields[$escaped_relation_table_name][] = $value;
+      $escaped_field_value = $this->escapeStringForSql(string_to_escape: (string) $value, connection: $connection);
+      $field_values_to_insert[] = "({$escaped_field_value}, currval('{$escaped_collection_name_id_sequence}'))";
     }
 
-    foreach ($relation_table_fields as $escaped_relation_table_name => $field_values) {
-      $query .= "INSERT INTO {$escaped_relation_table_name} (value, chunk_id) values ";
-      $last_value = end($field_values);
-      foreach ($field_values as $field_value) {
-        $query .= "({$field_value}, currval('{$escaped_collection_name_id_sequence}'))";
-        if ($field_value === $last_value) {
-          $query .= ';';
-        }
-        else {
-          $query .= ",";
-        }
-      }
+    if (!empty($field_values_to_insert)) {
+      $query = "INSERT INTO {$escaped_relation_table_name} (value, chunk_id) values " . implode(', ', $field_values_to_insert) . ';';
     }
+
     return $query;
   }
 
