@@ -60,6 +60,7 @@ class AmazeeioVdbProvider extends PostgresProvider {
     FormStateInterface $form_state,
     array $configuration,
   ): array {
+    $form = parent::buildSettingsForm($form, $form_state, $configuration);
     $config = $this->getConfig();
     $form['database_name']['#default_value'] = $configuration['database_settings']['database_name'] ?? $config->get(key: 'postgres_default_database');
     $form['collection']['#default_value'] = $configuration['database_settings']['collection'] ?? 'amazee_ai';

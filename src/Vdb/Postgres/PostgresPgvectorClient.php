@@ -61,7 +61,7 @@ class PostgresPgvectorClient {
     string $default_database,
     ?string $database = NULL,
   ): Connection|FALSE {
-    if (!isset($database)) {
+    if (!isset($database) || $database === 'default') {
       $database = $default_database;
     }
     $connection = pg_connect(
