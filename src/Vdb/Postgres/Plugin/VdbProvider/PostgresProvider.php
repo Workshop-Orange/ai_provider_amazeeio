@@ -116,7 +116,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
-  public function getConnection(?string $database = NULL): Connection|false {
+  public function getConnection(string $database = 'default'): Connection|false {
     $config = $this->getConnectionData();
     return $this->getClient()->getConnection(
       host: $config['postgres_host'],
@@ -179,7 +179,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
-  public function ping(?string $database = NULL): bool {
+  public function ping(string $database = 'default'): bool {
     if ($connection = $this->getConnection(database: $database)) {
       return $this->getClient()->ping(connection: $connection);
     }
@@ -203,7 +203,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\GetCollectionsException
    */
-  public function getCollections(?string $database = NULL): array {
+  public function getCollections(string $database = 'default'): array {
     return $this->getClient()->getCollections(
       connection: $this->getConnection(database: $database)
     );
@@ -220,7 +220,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     string $collection_name,
     int $dimension,
     VdbSimilarityMetrics $metric_type = VdbSimilarityMetrics::CosineSimilarity,
-    ?string $database = NULL,
+    string $database = 'default',
   ): void {
     try {
       $this->getClient()->createCollection(
@@ -247,7 +247,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    */
   public function dropCollection(
     string $collection_name,
-    ?string $database = NULL,
+    string $database = 'default',
   ): void {
     try {
       $this->getClient()->dropCollection(
@@ -276,7 +276,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
   public function insertIntoCollection(
     string $collection_name,
     array $data,
-    ?string $database = NULL,
+    string $database = 'default',
   ): void {
     $nativeFieldValues = array_intersect_key($data, array_flip(self::AI_SEARCH_NATIVE_FIELDS));
     $extraFields = array_diff_key($data, array_flip(self::AI_SEARCH_NATIVE_FIELDS));
@@ -303,7 +303,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
   public function deleteFromCollection(
     string $collection_name,
     array $ids,
-    ?string $database = NULL,
+    string $database = 'default',
   ): void {
     if (empty($ids)) {
       return;
@@ -354,7 +354,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
   public function querySearch(
     string $collection_name,
     array $output_fields,
-    mixed $filters = '',
+    string $filters = '',
     int $limit = 10,
     int $offset = 0,
     string $database = 'default',
@@ -382,7 +382,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     array $vector_input,
     array $output_fields,
     QueryInterface $query,
-    mixed $filters = '',
+    string $filters = '',
     int $limit = 10,
     int $offset = 0,
     string $database = 'default',
@@ -413,7 +413,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
   public function getVdbIds(
     string $collection_name,
     array $drupalIds,
-    ?string $database = NULL,
+    string $database = 'default',
   ): array {
     if (empty($drupalIds)) {
       return [];

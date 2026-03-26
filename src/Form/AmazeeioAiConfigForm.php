@@ -405,6 +405,9 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         '#ajax' => $buttonAjax,
         '#attributes' => ['class' => ['button', 'button--primary']],
       ];
+      $ajax['support_note'] = [
+        '#markup' => '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>',
+      ];
     }
 
     if ($state === static::STATE_VERIFICATION) {
@@ -422,6 +425,9 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         '#value' => $this->t('Validate'),
         '#ajax' => $buttonAjax,
         '#attributes' => ['class' => ['button', 'button--primary']],
+      ];
+      $ajax['support_note'] = [
+        '#markup' => '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>',
       ];
     }
 
@@ -528,6 +534,9 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         '#attributes' => ['class' => ['button', 'button--primary']],
         '#submit' => ['::submitCreateNewKey', '::submitForm'],
       ];
+      $ajax['support_note'] = [
+        '#markup' => '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>',
+      ];
     }
 
     if ($state === static::STATE_CONNECTED) {
@@ -569,6 +578,9 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
           '#submit' => ['::submitHealthRefresh'],
           '#attributes' => ['class' => ['button', 'button--secondary']],
         ],
+      ];
+      $ajax['support_note'] = [
+        '#markup' => '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>',
       ];
 
       // Because the "models" are evaluated above, we handle the refresh logic

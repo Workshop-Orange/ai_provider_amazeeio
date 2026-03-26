@@ -40,7 +40,7 @@ class AmazeeioVdbProvider extends PostgresProvider {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
   #[\Override]
-  public function getConnection(?string $database = NULL): PgSql|false {
+  public function getConnection(string $database = 'default'): PgSql|false {
     $config = $this->getConnectionData();
     return $this->getClient()->getConnection(
           host: $config['host'],
@@ -60,11 +60,30 @@ class AmazeeioVdbProvider extends PostgresProvider {
     FormStateInterface $form_state,
     array $configuration,
   ): array {
-    $form = NULL;
     $config = $this->getConfig();
     $form['database_name']['#default_value'] = $configuration['database_settings']['database_name'] ?? $config->get(key: 'postgres_default_database');
     $form['collection']['#default_value'] = $configuration['database_settings']['collection'] ?? 'amazee_ai';
     return $form;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function viewIndexSettings(array $database_settings): array {
+    $results = [];
+    $results['ping'] = [
+      'label' => $this->t('Ping'),
+      'info' => $this->t('Able to reach Postgres via the Amazee.io client.'),
+      'status' => $this->ping($database_settings['database_name']) ? 'success' : 'error',
+    ];
+
+    $config = $this->getConnectionData();
+    $results['host'] = [
+      'label' => $this->t('Postgres Host'),
+      'info' => $config['host'],
+    ];
+
+    return $results;
   }
 
   /**

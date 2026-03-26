@@ -5,6 +5,7 @@ namespace Drupal\ai_provider_amazeeio\Plugin\AiProvider;
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient;
 use Drupal\ai\Attribute\AiProvider;
 use Drupal\ai\Base\OpenAiBasedProviderClientBase;
+use Drupal\ai\Enum\AiProviderCapability;
 use Drupal\ai\Exception\AiQuotaException;
 use Drupal\ai\Exception\AiSetupFailureException;
 use Drupal\Core\State\StateInterface;
@@ -212,6 +213,16 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
     }
 
     return $generalConfig;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSupportedCapabilities(): array {
+    return [
+      AiProviderCapability::StreamChatOutput,
+      AiProviderCapability::ChatFiberSupport,
+    ];
   }
 
   /**
