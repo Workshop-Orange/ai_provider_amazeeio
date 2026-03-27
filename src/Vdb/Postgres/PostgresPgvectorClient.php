@@ -37,6 +37,7 @@ class PostgresPgvectorClient {
   protected const DATA_TYPE_MAPPING = [
     'integer' => 'INTEGER',
     'text' => 'TEXT',
+    'full_text' => 'TEXT',
     // Use BIGINT instead of TIMESTAMP because at index time, the provider
     // does not know whether the field value is a date or number.
     'date' => 'BIGINT',
@@ -544,7 +545,7 @@ class PostgresPgvectorClient {
       identifier_to_escape: $collection_name,
       connection: $connection,
     );
-    $postgres_type = self::DATA_TYPE_MAPPING[$data_type];
+    $postgres_type = self::DATA_TYPE_MAPPING[$data_type] ?? 'TEXT';
     $escaped_field_name = $this->escapeIdentifierForSql($name, $connection);
 
     // If isMultiple is true, create a new relationship table.
