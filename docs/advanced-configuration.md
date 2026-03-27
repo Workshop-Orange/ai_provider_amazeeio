@@ -128,3 +128,72 @@ $db_key->save();
 ```
 
 Once both keys exist and the config is saved, the provider will report as **Connected** without requiring the sign-in flow.
+
+---
+
+## Manual Migration / Sync Configuration
+
+If you have received credentials manually (e.g. for a dedicated environment) and want to manually update your `config/sync` files, you can adapt the following YAML structures.
+
+### `config/sync/ai_provider_amazeeio.settings.yml`
+
+There are 4 main places to change the connection details in this file:
+
+```yaml
+api_key: amazeeio_ai
+moderation: false
+# The base amazee.ai API host (typically https://api.amazee.ai)
+amazee_host: 'https://api.amazee.ai'
+# The specific LLM gateway URL for your environment
+host: 'LLM_HOST_GOES_HERE'
+# The PostgreSQL server address for the VectorDB
+postgres_host: DB_HOST_GOES_HERE
+postgres_port: 5432
+# The database name for the VectorDB
+postgres_default_database: DB_NAME_GOES_HERE
+# The database user for the VectorDB
+postgres_username: DB_USERNAME_GOES_HERE
+postgres_password: amazeeio_ai_database
+```
+
+### `config/sync/key.key.amazeeio_ai.yml`
+
+This file handles the LLM API key (the LiteLLM bearer token). You only need to change the `key_value` part:
+
+```yaml
+langcode: en
+status: true
+dependencies: {  }
+id: amazeeio_ai
+label: 'amazee.ai AI API Key'
+description: 'Automatically created by the amazee.ai AI provider.'
+key_type: authentication
+key_type_settings: {  }
+key_provider: config
+key_provider_settings:
+  key_value: LLM_KEY_GOES_HERE
+key_input: text_field
+key_input_settings: {  }
+```
+
+### `config/sync/key.key.amazeeio_ai_database.yml`
+
+This file handles the VectorDB password. You only need to change the `key_value` part:
+
+```yaml
+langcode: en
+status: true
+dependencies: {  }
+id: amazeeio_ai_database
+label: 'amazee.ai AI Database Key'
+description: 'Automatically created by the amazee.ai AI provider.'
+key_type: authentication
+key_type_settings: {  }
+key_provider: config
+key_provider_settings:
+  key_value: DATABASE_KEY_GOES_HERE
+key_input: text_field
+key_input_settings: {  }
+```
+
+> **Reminder:** After making manual changes to `config/sync`, run `drush cim -y` to import the new configuration into your database.

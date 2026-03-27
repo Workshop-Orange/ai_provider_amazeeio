@@ -53,6 +53,33 @@ amazee.ai offers different plan tiers to match your usage:
 2. Navigate to your account's **Billing** section to view usage, set spending limits, and update payment information.
 3. To upgrade from a trial account, disconnect the trial in Drupal, then reconnect using your full registered account email.
 
+> **Note:** API keys and VectorDB credentials are managed automatically within your Drupal site. There is no separate dashboard on amazee.ai for manually generating or rotating keys.
+
+---
+
+## Manual Configuration (Recipes & Pre-provisioning)
+
+If you have received credentials manually (e.g. via email for a dedicated environment) or need to automate the setup via CI/CD, you should use the **amazee.ai AI Provider Recipe**.
+
+### Using the Recipe (Recommended)
+
+The [amazee.ai AI Provider Recipe](https://www.drupal.org/project/ai_provider_amazeeio_recipe) automates the creation of Key entities and module configuration.
+
+1. Require the recipe via Composer:
+   ```bash
+   composer require drupal/ai_provider_amazeeio_recipe
+   ```
+2. Run the recipe using Drush:
+   ```bash
+   drush recipe ../recipes/ai_provider_amazeeio_recipe
+   ```
+3. Export your configuration to verify the settings:
+   ```bash
+   drush cex -y
+   ```
+
+For more details on manual configuration and environment-specific overrides, see [Advanced Configuration](advanced-configuration.md).
+
 ---
 
 ## Getting Support
