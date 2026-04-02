@@ -186,17 +186,29 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         // Silently fail if version cannot be fetched.
       }
 
+      if (!$isHealthy) {
+        \Drupal::logger('ai_provider_amazeeio')->error('LLM health check failed for @host. Status: @status, Body: @body', [
+          '@host' => $host,
+          '@status' => $statusCode,
+          '@body' => $body,
+        ]);
+      }
+
       $result = [
         'status' => $isHealthy,
-        'message' => $isHealthy ? $this->t('Online') : $this->t('Offline (unexpected response)'),
+        'message' => $isHealthy ? $this->t('Online') : $this->t('Offline (@url)', ['@url' => $host . '/health/liveliness']),
         'checked_at' => date('Y-m-d H:i:s'),
         'litellm_version' => $liteLlmVersion,
       ];
     }
     catch (\Exception $e) {
+      \Drupal::logger('ai_provider_amazeeio')->error('LLM health check failed for @host: @error', [
+        '@host' => $host,
+        '@error' => $e->getMessage(),
+      ]);
       $result = [
         'status' => FALSE,
-        'message' => $this->t('Offline (@error)', ['@error' => $e->getMessage()]),
+        'message' => $this->t('Offline (@url)', ['@url' => $host . '/health/liveliness']),
         'checked_at' => date('Y-m-d H:i:s'),
         'litellm_version' => '',
       ];
