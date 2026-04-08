@@ -38,6 +38,11 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
   public const string API_KEY_NAME = 'amazeeio_ai';
 
   /**
+   * The known key name for the management token.
+   */
+  public const string MANAGEMENT_TOKEN_NAME = 'amazeeio_ai_management_token';
+
+  /**
    * The known key name for the amazee.ai database password.
    */
   public const string VDB_PASSWORD_NAME = 'amazeeio_ai_database';
@@ -227,6 +232,59 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    */
   private function isForceRefresh(): bool {
     return (bool) $this->requestStack->getCurrentRequest()->query->get('health_refresh', FALSE);
+  }
+
+  /**
+   * Fetch key information from the LLM host.
+   *
+   * @return array
+   *   Array of key info or error message.
+   */
+  private function getLlmKeyInfo(): array {
+    $config = $this->configFactory->get(static::CONFIG_NAME);
+    $host = $config->get('host');
+    $apiKey = $this->getKeyValue(static::API_KEY_NAME);
+
+    if (empty($host) || empty($apiKey)) {
+      return ['error' => $this->t('LLM host or API key not configured')];
+    }
+
+    $cacheId = 'amazeeio_llm_key_info';
+    $cache = $this->cacheDefault->get($cacheId);
+
+    if ($cache !== FALSE && !$this->isForceRefresh()) {
+      return $cache->data;
+    }
+
+    try {
+      $response = $this->httpClient->get($host . '/key/info', [
+        'headers' => [
+          'Authorization' => "Bearer $apiKey",
+          'Content-Type' => 'application/json',
+        ],
+      ]);
+
+      $data = json_decode((string) $response->getBody(), TRUE);
+
+      if (empty($data['info']) || !\is_array($data['info'])) {
+        $result = ['error' => $this->t('No key info returned from LLM host')];
+        $this->cacheDefault->set($cacheId, $result, time() + 300);
+        return $result;
+      }
+
+      $result = [
+        'key_alias' => $data['info']['key_alias'] ?? '',
+        'key_name' => $data['info']['key_name'] ?? '',
+      ];
+
+      $this->cacheDefault->set($cacheId, $result, time() + 300);
+      return $result;
+    }
+    catch (\Exception $e) {
+      $result = ['error' => $this->t('Failed to fetch key info: @error', ['@error' => $e->getMessage()])];
+      $this->cacheDefault->set($cacheId, $result, time() + 60);
+      return $result;
+    }
   }
 
   /**
@@ -568,12 +626,69 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       $health = $this->checkLlmHealth();
       $host = $config->get('host');
 
+      // Fetch Team info.
+      $team_info = NULL;
+      $management_key_info = NULL;
+      $management_token = $this->getKeyValue(static::MANAGEMENT_TOKEN_NAME);
+      $llm_api_key = $this->getKeyValue(static::API_KEY_NAME);
+
+      if (!$trial_account) {
+        $cache_id = 'amazeeio_ai_dashboard_data_' . ($management_token ? hash('sha256', $management_token) : 'no_token');
+        $cache = $this->cacheDefault->get($cache_id);
+
+        if ($cache !== FALSE && !$this->isForceRefresh()) {
+          $team_info = $cache->data['team'] ?? NULL;
+          $management_key_info = $cache->data['key'] ?? NULL;
+        }
+        else {
+          // If we don't have a valid session token, try the management token.
+          $using_management_token = FALSE;
+          if (!$this->amazeeClient->authorized() && $management_token) {
+            $this->amazeeClient->setToken($management_token);
+            $this->amazeeClient->setHost(AmazeeClient::AMAZEE_API_HOST);
+            $using_management_token = TRUE;
+          }
+
+          if ($this->amazeeClient->authorized()) {
+            $team_id = $this->amazeeClient->getTeamId();
+            if ($team_id) {
+              $team_data = $this->amazeeClient->getTeam((int) $team_id);
+              if ($team_data) {
+                $team_info = ['name' => $team_data->name ?? ''];
+              }
+            }
+
+            if ($llm_api_key) {
+              $api_key_data = $this->amazeeClient->getPrivateApiKey($llm_api_key);
+              if ($api_key_data) {
+                $management_key_info = ['name' => $api_key_data->name ?? ''];
+              }
+            }
+
+            $this->cacheDefault->set($cache_id, [
+              'team' => $team_info,
+              'key' => $management_key_info,
+            ], time() + 300);
+          }
+
+          // Restore original token if we swapped it.
+          if ($using_management_token) {
+            $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
+          }
+        }
+      }
+
+      $key_info = (empty($host) || !$this->getKeyValue(static::API_KEY_NAME)) ? [] : $this->getLlmKeyInfo();
+
       // Prepare dashboard elements that need to be within the form tree
       // (like submit buttons) to ensure their callbacks function correctly.
       $ajax['dashboard'] = [
         '#theme' => 'amazeeio_ai_dashboard',
         '#logo' => $logo_path,
         '#health' => $health,
+        '#team' => $team_info,
+        '#key_info' => $key_info,
+        '#management_key_info' => $management_key_info,
         '#models' => (empty($host) || !$this->getKeyValue(static::API_KEY_NAME)) ? [] : $this->getLlmHostModels(),
         '#host' => $host,
         '#database' => $config->get('postgres_default_database'),
@@ -772,9 +887,8 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     if ($form_state->get('state') === static::STATE_VERIFIED) {
-      $config = $this->config(static::CONFIG_NAME);
       $this->amazeeClient->setToken($this->getTempStore()->get('access_token') ?? '');
-      $this->amazeeClient->setHost($config->get('host') ?? '');
+      $this->amazeeClient->setHost(AmazeeClient::AMAZEE_API_HOST);
 
       // Check if user selected an existing key.
       $selected_key_index = $form_state->get('selected_key_index');
@@ -871,6 +985,40 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
           ])
           ->save();
 
+        // Create management token.
+        $management_key = $key_storage->load(static::MANAGEMENT_TOKEN_NAME);
+        if (!$management_key || !$management_key->getKeyValue()) {
+          $token_name = 'drupal_management_token';
+          // Check if token already exists on server.
+          $existing_tokens = $this->amazeeClient->listManagementTokens();
+          foreach ($existing_tokens as $token) {
+            if ($token->name === $token_name) {
+              $this->amazeeClient->deleteManagementToken((int) $token->id);
+            }
+          }
+
+          $management_token = $this->amazeeClient->createManagementToken($token_name);
+          if ($management_token) {
+            $management_key = $management_key ?? $key_storage->create(
+              [
+                'id' => static::MANAGEMENT_TOKEN_NAME,
+                'label' => 'amazee.ai Management Token',
+                'description' => 'Automatically created by the amazee.ai AI provider.',
+              ]
+            );
+            $management_key
+              ->set('key_provider', 'config')
+              ->set('key_provider_settings', ['key_value' => $management_token])
+              ->set('key_input', 'text_field')
+              ->set('dependencies', [
+                'module' => [
+                  'ai_provider_amazeeio',
+                ],
+              ])
+              ->save();
+          }
+        }
+
         // Set the default models where available.
         /** @var \Drupal\ai_provider_amazeeio\Plugin\AiProvider\AmazeeioAiProvider $provider */
         $provider = $this->aiProviderManager->createInstance(AmazeeioAiProvider::PROVIDER_ID);
@@ -908,7 +1056,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
 
       $this->getTempStore()->delete('access_token');
 
-      /** @var EntityStorageInterface $key_storage */
+      /** @var \Drupal\Core\Entity\EntityStorageInterface $key_storage */
       $key_storage = $this->entityTypeManager->getStorage('key');
 
       $apiKey = $key_storage->load(static::API_KEY_NAME);
@@ -919,6 +1067,11 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       $dbKey = $key_storage->load(static::VDB_PASSWORD_NAME);
       if ($dbKey) {
         $dbKey->delete();
+      }
+
+      $managementKey = $key_storage->load(static::MANAGEMENT_TOKEN_NAME);
+      if ($managementKey) {
+        $managementKey->delete();
       }
 
       // Ensure Drupal State for trial account is removed too.

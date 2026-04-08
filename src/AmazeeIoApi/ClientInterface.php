@@ -132,4 +132,56 @@ interface ClientInterface {
    */
   public function getPrivateApiKey(string $api_key): ?\stdClass;
 
+  /**
+   * Create a long-lived management token.
+   *
+   * @param string $name
+   *   The name of the token.
+   *
+   * @return string
+   *   The new management token, or empty string on failure.
+   */
+  public function createManagementToken(string $name): string;
+
+  /**
+   * List management tokens.
+   *
+   * @return array
+   *   Array of management tokens.
+   */
+  public function listManagementTokens(): array;
+
+  /**
+   * Delete a management token.
+   *
+   * @param int $tokenId
+   *   The ID of the token to delete.
+   *
+   * @return bool
+   *   TRUE on success, FALSE on failure.
+   */
+  public function deleteManagementToken(int $tokenId): bool;
+
+  /**
+   * Get team details.
+   *
+   * @param int $teamId
+   *   The ID of the team.
+   *
+   * @return \stdClass|null
+   *   The team info or NULL on failure.
+   */
+  public function getTeam(int $teamId): ?\stdClass;
+
+  /**
+   * Get spend info for a specific AI key.
+   *
+   * @param int $keyId
+   *   The ID of the AI key.
+   *
+   * @return \stdClass|null
+   *   The spend info or NULL on failure.
+   */
+  public function getKeySpend(int $keyId): ?\stdClass;
+
 }

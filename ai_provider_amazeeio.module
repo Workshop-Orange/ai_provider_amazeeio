@@ -193,6 +193,9 @@ function template_preprocess_amazeeio_ai_dashboard(array &$variables): void {
   $variables['database'] = $element['#database'] ?? '';
   $variables['key_name'] = $element['#key_name'] ?? '';
   $variables['trial_account'] = $element['#trial_account'] ?? FALSE;
+  $variables['team'] = $element['#team'] ?? NULL;
+  $variables['key_info'] = $element['#key_info'] ?? NULL;
+  $variables['management_key_info'] = $element['#management_key_info'] ?? NULL;
 
   // Variables for the interactive buttons so Twig can render them securely.
   $variables['submit_disconnect'] = $element['submit_disconnect'] ?? [];

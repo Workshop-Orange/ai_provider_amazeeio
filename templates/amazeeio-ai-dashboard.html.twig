@@ -10,6 +10,8 @@
  * - database: string representing the VectorDB database.
  * - key_name: string representing the selected key name.
  * - trial_account: boolean indicating if using a trial account.
+ * - team: array containing team information.
+ * - spend: array containing spend information.
  * - submit_disconnect: render array for the disconnect button.
  * - health_refresh: render array for checking health.
  * - refresh: render array for refreshing models.
@@ -58,9 +60,15 @@
     <div class="ai-connection-details" style="margin-top: 2rem;">
       <table>
         <tbody>
+          {% if team and team.name %}
+            <tr>
+              <th>{{ 'Team'|t }}</th>
+              <td>{{ team.name }}</td>
+            </tr>
+          {% endif %}
           <tr>
-            <th>{{ 'Name'|t }}</th>
-            <td>{{ key_name }}</td>
+            <th>{{ 'LLM Key Name'|t }}</th>
+            <td>{{ management_key_info.name ?: ((key_info.key_alias ?: key_info.key_name) ?: key_name) }}</td>
           </tr>
           {% if host %}
             <tr>

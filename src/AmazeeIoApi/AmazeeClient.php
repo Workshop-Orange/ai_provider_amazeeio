@@ -323,6 +323,77 @@ class AmazeeClient implements ClientInterface {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function createManagementToken(string $name): string {
+    try {
+      $response = $this->makeRequest('POST', '/auth/token', ['name' => $name]);
+      $data = json_decode($response->getBody()->getContents());
+      return $data->token ?? '';
+    }
+    catch (ClientException | GuzzleException | \Exception $e) {
+      $this->logger->error('Failed to create management token: @error', ['@error' => $e->getMessage()]);
+      return '';
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function listManagementTokens(): array {
+    try {
+      $response = $this->makeRequest('GET', '/auth/token');
+      return json_decode($response->getBody()->getContents());
+    }
+    catch (ClientException | GuzzleException | \Exception $e) {
+      $this->logger->error('Failed to list management tokens: @error', ['@error' => $e->getMessage()]);
+      return [];
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function deleteManagementToken(int $tokenId): bool {
+    try {
+      $this->makeRequest('DELETE', '/auth/token/' . $tokenId);
+      return TRUE;
+    }
+    catch (ClientException | GuzzleException | \Exception $e) {
+      $this->logger->error('Failed to delete management token: @error', ['@error' => $e->getMessage()]);
+      return FALSE;
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getTeam(int $teamId): ?\stdClass {
+    try {
+      $response = $this->makeRequest('GET', '/teams/' . $teamId);
+      return json_decode($response->getBody()->getContents());
+    }
+    catch (ClientException | GuzzleException | \Exception $e) {
+      $this->logger->error('Failed to get team info: @error', ['@error' => $e->getMessage()]);
+      return NULL;
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getKeySpend(int $keyId): ?\stdClass {
+    try {
+      $response = $this->makeRequest('GET', '/private-ai-keys/' . $keyId . '/spend');
+      return json_decode($response->getBody()->getContents());
+    }
+    catch (ClientException | GuzzleException | \Exception $e) {
+      $this->logger->error('Failed to get spend info for key: @error', ['@error' => $e->getMessage()]);
+      return NULL;
+    }
+  }
+
+  /**
    * Helper method to make requests against the API.
    *
    * Adds standard headers (Content-Type, Authorization).
@@ -371,7 +442,13 @@ class AmazeeClient implements ClientInterface {
           'body' => $body,
         ]
       ),
-      default => throw new \InvalidArgumentException('Only GET and POST request types are supported.'),
+      'DELETE' => $this->client->delete(
+        $this->host . $endpoint, [
+          'headers' => $headers,
+          'body' => $body,
+        ]
+      ),
+      default => throw new \InvalidArgumentException('Only GET, POST and DELETE request types are supported.'),
     };
   }
 

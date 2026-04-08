@@ -53,6 +53,11 @@ class MockHttpClient extends Client {
     'GET:/regions' => 'mockRegions',
     'POST:/private-ai-keys' => 'mockPostPrivateKey',
     'GET:/private-ai-keys' => 'mockGetPrivateKeys',
+    'POST:/auth/token' => 'mockPostToken',
+    'GET:/auth/token' => 'mockListTokens',
+    'DELETE:/auth/token/1' => 'mockDeleteToken',
+    'GET:/teams/1' => 'mockGetTeam',
+    'GET:/private-ai-keys/1/spend' => 'mockGetSpend',
     'GET:/ch1/key/info' => 'mockKeyInfo',
     // Used for testing the testing framework.
     'GET:/mocked/request' => 'mockTestRequest',
@@ -109,7 +114,7 @@ class MockHttpClient extends Client {
     if (!$header->has('Authorization')) {
       $this->error(401, 'Missing authorization header.');
     }
-    if (!in_array($header->get('Authorization'), ['Bearer 1234', 'Bearer 4321'])) {
+    if (!in_array($header->get('Authorization'), ['Bearer 1234', 'Bearer 4321', 'Bearer mock-management-token'])) {
       $this->error(403, 'Invalid authorization header.');
     }
     return NULL;
@@ -231,6 +236,77 @@ class MockHttpClient extends Client {
       ];
     }
     return $this->success($keys);
+  }
+
+  /**
+   * Mock POST /auth/token.
+   */
+  protected function mockPostToken(ParameterBag $body, ParameterBag $header): ResponseInterface {
+    if ($err = $this->authorizeAccess($body, $header)) {
+      return $err;
+    }
+    return $this->success(['token' => 'mock-management-token', 'id' => 1, 'name' => $body->get('name')]);
+  }
+
+  /**
+   * Mock GET /auth/token.
+   */
+  protected function mockListTokens(ParameterBag $body, ParameterBag $header): ResponseInterface {
+    if ($err = $this->authorizeAccess($body, $header)) {
+      return $err;
+    }
+    return $this->success([
+      [
+        'id' => 1,
+        'name' => 'drupal_management_token',
+        'created_at' => '2025-05-13T05:42:48.124Z',
+        'user_id' => 1,
+      ],
+    ]);
+  }
+
+  /**
+   * Mock DELETE /auth/token/{id}.
+   */
+  protected function mockDeleteToken(ParameterBag $body, ParameterBag $header): ResponseInterface {
+    if ($err = $this->authorizeAccess($body, $header)) {
+      return $err;
+    }
+    return $this->success([]);
+  }
+
+  /**
+   * Mock GET /teams/1.
+   */
+  protected function mockGetTeam(ParameterBag $body, ParameterBag $header): ResponseInterface {
+    if ($err = $this->authorizeAccess($body, $header)) {
+      return $err;
+    }
+    return $this->success([
+      'name' => 'Mock Team',
+      'admin_email' => 'admin@example.com',
+      'id' => 1,
+      'is_active' => TRUE,
+      'is_always_free' => FALSE,
+      'budget_type' => 'monthly',
+      'created_at' => '2025-05-13T05:42:48.124Z',
+    ]);
+  }
+
+  /**
+   * Mock GET /private-ai-keys/1/spend.
+   */
+  protected function mockGetSpend(ParameterBag $body, ParameterBag $header): ResponseInterface {
+    if ($err = $this->authorizeAccess($body, $header)) {
+      return $err;
+    }
+    return $this->success([
+      'spend' => 123.456,
+      'max_budget' => 500.0,
+      'expires' => '2026-05-13T05:42:48.124Z',
+      'created_at' => '2025-05-13T05:42:48.124Z',
+      'updated_at' => '2025-05-13T05:42:48.124Z',
+    ]);
   }
 
   /**
