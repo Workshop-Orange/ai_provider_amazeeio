@@ -561,6 +561,11 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     EmbeddingStrategyInterface $embedding_strategy,
   ): array {
     $successfulItemIds = [];
+    $embedding_strategy->init(
+      $configuration["embeddings_engine"],
+      $configuration["chat_model"],
+      $configuration["embedding_strategy_configuration"]
+    );
 
     $itemIds = array_values(array_map(fn($item) => $item->getId(), $items));
 
@@ -591,13 +596,8 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
 
       $itemId = $item->getId();
       $fields = $item->getFields();
-      $allChunks = $embedding_strategy->getChunks(
-        $configuration['embeddings_engine'],
-        $configuration['embedding_strategy_configuration'],
-        $fields,
-        $item,
-        $index,
-      );
+      [$title, $contextual_content, $main_content] = $embedding_strategy->groupFieldData($fields, $index);
+      $allChunks = $embedding_strategy->getChunks($title, $main_content, $contextual_content);
       $totalChunks = count($allChunks);
       $offset = $processedStatus[$itemId] ?? 0;
 
@@ -646,11 +646,11 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
       }
 
       try {
-        $embeddings = $embedding_strategy->getEmbedding(
+        $embeddings = $embedding_strategy->getEmbeddingsFromChunks(
           $chunks,
           $item->getFields(),
           $item,
-          $index,
+          $index, $offset,
         );
       }
       catch (AiUnsafePromptException $e) {
