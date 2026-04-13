@@ -3,14 +3,12 @@
 namespace Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider;
 
 use Drupal\ai\Base\AiVdbProviderClientBase;
-use Drupal\Core\Database\Connection as DrupalConnection;
 use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Component\Plugin\DependentPluginInterface;
 use Drupal\key\KeyRepositoryInterface;
 use PgSql\Connection;
 use Drupal\ai\Enum\VdbSimilarityMetrics;
-use Drupal\ai\Exception\AiUnsafePromptException;
 use Drupal\ai_search\EmbeddingStrategyInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Logger\LoggerChannelTrait;
@@ -63,23 +61,11 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
   protected MessengerInterface $messenger;
 
   /**
-   * The database connection.
-   */
-  protected DrupalConnection $database;
-
-  /**
    * The configuration.
    *
    * @var array
    */
   protected array $configuration;
-
-  /**
-   * The embedding validator.
-   *
-   * @var mixed
-   */
-  protected $embeddingValidator;
 
   /**
    * {@inheritdoc}
@@ -89,12 +75,6 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     $instance->keyRepository = $container->get('key.repository');
     $instance->configFactory = $container->get('config.factory');
     $instance->messenger = $container->get('messenger');
-    $instance->database = $container->get('database');
-    // The embedding validator might be named differently in 1.x, but this is
-    // the most likely name given the 2.x code.
-    if ($container->has('ai.embedding.validator')) {
-      $instance->embeddingValidator = $container->get('ai.embedding.validator');
-    }
     return $instance;
   }
 
@@ -357,7 +337,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     string $filters = '',
     int $limit = 10,
     int $offset = 0,
-    string $database = 'default',
+    ?string $database = NULL,
   ): array {
     return $this->getClient()->querySearch(
       collection_name: $collection_name,
@@ -385,7 +365,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     string $filters = '',
     int $limit = 10,
     int $offset = 0,
-    string $database = 'default',
+    ?string $database = NULL,
   ): array {
     $metric_type = VdbSimilarityMetrics::from(
       $query->getIndex()->getServerInstance()->getBackendConfig()['database_settings']['metric']
@@ -561,123 +541,41 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     EmbeddingStrategyInterface $embedding_strategy,
   ): array {
     $successfulItemIds = [];
-    $embedding_strategy->init(
-      $configuration["embeddings_engine"],
-      $configuration["chat_model"],
-      $configuration["embedding_strategy_configuration"]
-    );
+    $itemBase = [
+      'metadata' => [
+        'server_id' => $index->getServerId(),
+        'index_id' => $index->id(),
+      ],
+    ];
 
-    $itemIds = array_values(array_map(fn($item) => $item->getId(), $items));
-
-    // Get the items that are currently being processed, where there was not
-    // enough processing budget to handle all chunks.
-    $processedStatus = $this->database->select('search_api_item', 'sai')
-      ->fields('sai', ['item_id', 'processed_chunks'])
-      ->condition('index_id', $index->id())
-      ->condition('item_id', $itemIds, 'IN')
-      ->execute()
-      ->fetchAllKeyed();
-
-    // Delete items that have not yet had processing started. This is needed
-    // because the chunk count for the entity can change, so we need to start
-    // fresh each reindexing.
-    $deleteItemIds = array_diff($itemIds, array_keys(array_filter($processedStatus)));
-    if (!empty($deleteItemIds)) {
-      $this->deleteIndexItems($configuration, $index, $deleteItemIds);
-    }
-
-    $remainingMaximumChunksToProcess = $this->getMaximumChunksPerIndexItems();
+    // Check if we need to delete some items first.
+    $this->deleteIndexItems($configuration, $index, array_values(array_map(function ($item) {
+      return $item->getId();
+    }, $items)));
 
     /** @var \Drupal\search_api\Item\ItemInterface $item */
     foreach ($items as $item) {
-      if ($remainingMaximumChunksToProcess <= 0) {
-        break;
-      }
-
-      $itemId = $item->getId();
       $fields = $item->getFields();
-      [$title, $contextual_content, $main_content] = $embedding_strategy->groupFieldData($fields, $index);
-      $allChunks = $embedding_strategy->getChunks($title, $main_content, $contextual_content);
-      $totalChunks = count($allChunks);
-      $offset = $processedStatus[$itemId] ?? 0;
-
-      // Calculate how many chunks are left to process for this specific item.
-      $chunksLeftForItem = $totalChunks - $offset;
-
-      // Determine how many chunks to take in this run: either all remaining
-      // chunks for the item, or the rest of our batch budget, whichever is
-      // smaller.
-      $chunksToTake = min($chunksLeftForItem, $remainingMaximumChunksToProcess);
-
-      if ($chunksToTake <= 0) {
-        // This item may be fully processed already, or there's no budget left.
-        if ($offset >= $totalChunks) {
-          $successfulItemIds[] = $itemId;
-        }
-        continue;
-      }
-
-      $chunks = array_slice($allChunks, $offset, $chunksToTake);
-
-      // If the item is not fully processed, update the processed chunks.
-      if (($offset + count($chunks)) < $totalChunks) {
-        $this->database->update('search_api_item')
-          ->fields([
-            'processed_chunks' => $offset + count($chunks),
-            'total_chunks' => $totalChunks,
-          ])
-          ->condition('index_id', $index->id())
-          ->condition('item_id', $itemId)
-          ->execute();
-      }
-      else {
-
-        // Store the totals. It is not strictly necessary to track progress on
-        // anything other than entities that have not indexed in one go, but it
-        // makes it easier to debug.
-        $this->database->update('search_api_item')
-          ->fields([
-            'processed_chunks' => $totalChunks,
-            'total_chunks' => $totalChunks,
-          ])
-          ->condition('index_id', $index->id())
-          ->condition('item_id', $itemId)
-          ->execute();
-      }
-
-      try {
-        $embeddings = $embedding_strategy->getEmbeddingsFromChunks(
-          $chunks,
-          $item->getFields(),
-          $item,
-          $index, $offset,
-        );
-      }
-      catch (AiUnsafePromptException $e) {
-        $this->getLogger('ai_search')->warning('Skipping item @id due to unsafe prompt: @message', [
-          '@id' => $itemId,
-          '@message' => $e->getMessage(),
-        ]);
-        continue;
-      }
-
-      /** @var \Drupal\ai\Embedding $embedding */
+      $embeddings = $embedding_strategy->getEmbedding(
+        $configuration['embeddings_engine'],
+        $configuration['chat_model'],
+        $configuration['embedding_strategy_configuration'],
+        $fields,
+        $item,
+        $index,
+      );
       foreach ($embeddings as $embedding) {
         // Ensure consistent embedding structure as per
         // EmbeddingStrategyInterface.
-        $violations = $this->embeddingValidator->validate($embedding);
-        if (count($violations) > 0) {
-          throw new \Exception("The embedding object must be valid: \n$violations");
-        }
+        $this->validateRetrievedEmbedding($embedding);
 
         // Merge the base array structure with the individual chunk array
         // structure and add additional details.
-        $embedding->putMetadata('server_id', $index->getServerId());
-        $embedding->putMetadata('index_id', $index->id());
-        $data['drupal_long_id'] = ['value' => $embedding->id, 'is_multiple' => FALSE];
-        $data['drupal_entity_id'] = ['value' => $itemId, 'is_multiple' => FALSE];
-        $data['vector'] = ['value' => $embedding->values, 'is_multiple' => FALSE];
-        foreach ($embedding->getMetadata() as $key => $value) {
+        $embedding = array_merge_recursive($embedding, $itemBase);
+        $data['drupal_long_id'] = ['value' => $embedding['id'], 'is_multiple' => FALSE];
+        $data['drupal_entity_id'] = ['value' => $item->getId(), 'is_multiple' => FALSE];
+        $data['vector'] = ['value' => $embedding['values'], 'is_multiple' => FALSE];
+        foreach ($embedding['metadata'] as $key => $value) {
           if (in_array($key, self::AI_SEARCH_NATIVE_FIELDS)) {
             $data[$key] = ['value' => $value, 'is_multiple' => FALSE];
             continue;
@@ -692,15 +590,8 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
         );
       }
 
-      // Mark an item as successful only if all chunks have been processed.
-      // We otherwise need the batch processing to pick this item up again
-      // next batch run and continue where it left off.
-      $remainingMaximumChunksToProcess -= count($chunks);
-      if (($offset + count($chunks)) >= $totalChunks) {
-        $successfulItemIds[] = $itemId;
-      }
+      $successfulItemIds[] = $item->getId();
     }
-
     return $successfulItemIds;
   }
 
@@ -732,13 +623,6 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    */
   public function deleteIndexItems(array $configuration, IndexInterface $index, array $item_ids): void {
     $this->deleteItems($configuration, $item_ids);
-  }
-
-  /**
-   * Get the maximum number of chunks to process per index run.
-   */
-  protected function getMaximumChunksPerIndexItems(): int {
-    return 100;
   }
 
 }
