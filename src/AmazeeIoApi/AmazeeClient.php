@@ -17,6 +17,13 @@ use Psr\Log\LoggerInterface;
 class AmazeeClient implements ClientInterface {
 
   /**
+   * Request-scoped cache for model metadata.
+   *
+   * @var array<string, \Drupal\ai_provider_amazeeio\DTO\Model>|null
+   */
+  protected ?array $modelsCache = NULL;
+
+  /**
    * The api endpoint host.
    *
    * @var string
@@ -68,6 +75,7 @@ class AmazeeClient implements ClientInterface {
    */
   public function setToken(string $token): void {
     $this->authToken = $token;
+    $this->modelsCache = NULL;
   }
 
   /**
@@ -75,6 +83,7 @@ class AmazeeClient implements ClientInterface {
    */
   public function setHost(string $host): void {
     $this->host = $host;
+    $this->modelsCache = NULL;
   }
 
   /**
@@ -230,6 +239,10 @@ class AmazeeClient implements ClientInterface {
    *   The available models.
    */
   public function models(): array {
+    if ($this->modelsCache !== NULL) {
+      return $this->modelsCache;
+    }
+
     $response = $this->makeRequest('GET', '/model/info');
     $decoded_response = json_decode($response->getBody());
 
@@ -238,7 +251,9 @@ class AmazeeClient implements ClientInterface {
       $models[$model_info->model_name] = Model::createFromResponse($model_info);
     }
 
-    return $models;
+    $this->modelsCache = $models;
+
+    return $this->modelsCache;
   }
 
   /**
