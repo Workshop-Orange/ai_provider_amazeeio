@@ -1,5 +1,4 @@
 ai_provider_amazeeio:
-  version: 1.x
   css:
     component:
       css/ai-provider-amazeeio.css: {}
