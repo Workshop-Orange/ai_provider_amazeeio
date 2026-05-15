@@ -406,6 +406,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
       collection_name: $collection_name,
       output_fields: ['id'],
       filters: "WHERE drupal_entity_id IN $prepared_drupal_ids",
+      limit: PHP_INT_MAX,
       database: $database
     );
     $ids = [];

@@ -3,7 +3,6 @@
 namespace Drupal\ai_provider_amazeeio\Vdb\Postgres;
 
 use Drupal\ai\Enum\VdbSimilarityMetrics;
-use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\AddFieldIfNotExistsException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\CreateCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException;
@@ -14,6 +13,8 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\GetCollectionsException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\InsertIntoCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\QuerySearchException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Field\TypedData\FieldItemDataDefinitionInterface;
 use Drupal\search_api\Utility\FieldsHelperInterface;
@@ -31,8 +32,13 @@ class PostgresPgvectorClient {
    * @param \Drupal\search_api\Utility\FieldsHelperInterface|null $fieldHelper
    *   Search API's field helper. Nullable, since this class is only in use
    *   when Search API is enabled.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
+   *   The entity type manager.
    */
-  public function __construct(private readonly ?FieldsHelperInterface $fieldHelper) {}
+  public function __construct(
+    private readonly ?FieldsHelperInterface $fieldHelper,
+    private readonly EntityTypeManagerInterface $entityTypeManager,
+  ) {}
 
   protected const DATA_TYPE_MAPPING = [
     'integer' => 'INTEGER',
@@ -91,19 +97,13 @@ class PostgresPgvectorClient {
   public function getCollections(Connection $connection): array {
     $result = pg_query_params(
       connection: $connection,
-      query: 'SELECT * FROM pg_catalog.pg_tables WHERE schemaname != $1 AND schemaname != $2;',
-      params: ['pg_catalog', 'information_schema'],
+      query: 'SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = $1',
+      params: ['BASE TABLE'],
     );
     if (!$result) {
       throw new GetCollectionsException(message: pg_last_error(connection: $connection));
     }
-    $rows = pg_fetch_all(result: $result);
-
-    $tables = array_map(
-      callback: fn($row) => $row['tablename'],
-      array: $rows
-    );
-    return $tables;
+    return pg_fetch_all_columns($result);
   }
 
   /**
@@ -127,6 +127,49 @@ class PostgresPgvectorClient {
     if (!$result) {
       throw new CreateCollectionException(message: pg_last_error(connection: $connection));
     }
+    // Attempt to update the additional fields from the search api indexes.
+    foreach ($this->getSearchApiServers($collection_name, $connection) as $search_api_server) {
+      foreach ($search_api_server->getIndexes() as $index) {
+        // Create the necessary index fields.
+        $this->updateFields($index->getFields(), $collection_name, $connection);
+      }
+    }
+  }
+
+  /**
+   * Returns the search api servers for the current connection.
+   *
+   * @param string $collection_name
+   *   The collection name of the connection.
+   * @param \PgSql\Connection $connection
+   *   The current connection.
+   *
+   * @return \Drupal\search_api\Entity\Server[]
+   *   The Search API servers.
+   */
+  protected function getSearchApiServers(string $collection_name, Connection $connection): array {
+    if (!$this->entityTypeManager->hasDefinition('search_api_server')) {
+      return [];
+    }
+
+    $result = pg_query(
+      $connection,
+      'SELECT current_database()'
+    );
+    $current_database = pg_fetch_result($result, 0, 0);
+
+    $search_api_server_storage = $this->entityTypeManager->getStorage('search_api_server');
+    $query = $search_api_server_storage->getQuery();
+    $query->condition('status', TRUE)
+      ->condition('backend', 'search_api_ai_search')
+      ->condition('backend_config.database', 'amazeeio_vector_db')
+      ->condition('backend_config.database_settings.database_name', $current_database)
+      ->condition('backend_config.database_settings.collection', $collection_name);
+    $ai_servers = $query
+      ->accessCheck(FALSE)
+      ->execute();
+
+    return $search_api_server_storage->loadMultiple($ai_servers);
   }
 
   /**
@@ -148,6 +191,21 @@ class PostgresPgvectorClient {
     );
     if (!$result) {
       throw new DropCollectionException(message: pg_last_error(connection: $connection));
+    }
+
+    $relation_tables = $this->getRelationTables($collection_name, $connection);
+    foreach ($relation_tables as $relation_table) {
+      $escaped_relation_table = $this->escapeIdentifierForSql(
+        $relation_table,
+        $connection,
+      );
+      $result = pg_query(
+        $connection,
+        "DROP TABLE IF EXISTS {$escaped_relation_table} CASCADE;"
+      );
+      if (!$result) {
+        throw new DropCollectionException(message: pg_last_error(connection: $connection));
+      }
     }
   }
 
@@ -191,7 +249,8 @@ class PostgresPgvectorClient {
         }
       }
       else {
-        $extra_fields_columns .= ", {$field_name}";
+        $escaped_field_name = $this->escapeIdentifierForSql($field_name, $connection);
+        $extra_fields_columns .= ", {$escaped_field_name}";
         $extra_fields_values .= ", \${$param_index}";
         $extra_fields_params[] = $field_data['value'];
         $param_index++;
@@ -227,10 +286,30 @@ class PostgresPgvectorClient {
   }
 
   /**
-   * {@inheritdoc}
+   * Delete rows from a collection and its relation tables.
+   *
+   * Matches against the collection's primary key (`id` column), not the
+   * `drupal_entity_id` column. Callers holding Drupal entity IDs must first
+   * resolve them to VDB row IDs (see
+   * \Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider\PostgresProvider::getVdbIds()).
+   *
+   * Any relation tables associated with the collection (discovered via the
+   * `{collection}__{field}` naming convention) have their matching `chunk_id`
+   * rows deleted as well.
+   *
+   * @param string $collection_name
+   *   The name of the collection (parent table).
+   * @param array $ids
+   *   VDB row IDs from the collection's `id` column. NOT Drupal entity IDs.
+   * @param \PgSql\Connection $connection
+   *   The Postgres connection.
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DeleteFromCollectionException
+   *   When the DELETE on the collection or one of its relation tables fails.
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
+   *   When identifier or value escaping fails.
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\GetCollectionsException
+   *   When relation table discovery fails.
    */
   public function deleteFromCollection(
     string $collection_name,
@@ -247,11 +326,57 @@ class PostgresPgvectorClient {
     $prepared_ids = $this->prepareStringArrayForSql(items: $ids, connection: $connection);
     $result = pg_query(
       connection: $connection,
-      query: "DELETE FROM {$escaped_collection_name} WHERE drupal_entity_id IN {$prepared_ids};"
+      query: "DELETE FROM {$escaped_collection_name} WHERE id IN {$prepared_ids}"
     );
     if (!$result) {
       throw new DeleteFromCollectionException(message: pg_last_error(connection: $connection));
     }
+
+    $relation_tables = $this->getRelationTables($collection_name, $connection);
+    foreach ($relation_tables as $relation_table) {
+      $escaped_relation_table = $this->escapeIdentifierForSql(
+        $relation_table,
+        $connection,
+      );
+      $result = pg_query(
+        $connection,
+        "DELETE FROM {$escaped_relation_table} WHERE chunk_id IN {$prepared_ids};"
+      );
+      if (!$result) {
+        throw new DeleteFromCollectionException(message: pg_last_error(connection: $connection));
+      }
+    }
+  }
+
+  /**
+   * Returns a list of relational tables for the collection.
+   *
+   * It works under the assumption that relation tables use the "__" prefix for
+   * additional fields.
+   *
+   * @param string $collection_name
+   *   The collection name.
+   * @param \PgSql\Connection $connection
+   *   The database connection object.
+   *
+   * @return array
+   *   The list of relational tables.
+   *
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\GetCollectionsException
+   *
+   * @see \Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient::getRelationTableName()
+   */
+  protected function getRelationTables(string $collection_name, Connection $connection): array {
+    $like_safe_name = str_replace(['%', '_'], ['\%', '\_'], $collection_name);
+    $result = pg_query_params(
+      $connection,
+      'SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = $1 AND table_name LIKE $2',
+      ['BASE TABLE', "{$like_safe_name}\\_\\_%"],
+    );
+    if (!$result) {
+      throw new GetCollectionsException(message: pg_last_error(connection: $connection));
+    }
+    return pg_fetch_all_columns($result);
   }
 
   /**
