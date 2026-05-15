@@ -607,23 +607,4 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     ];
   }
 
-  /**
-   * Check if a field is multiple.
-   */
-  public function isMultiple($field): bool {
-    $field_definition = $field->getDataDefinition();
-    if (method_exists($field_definition, 'getFieldDefinition')) {
-      $storage = $field_definition->getFieldDefinition()->getFieldStorageDefinition();
-      return $storage->getCardinality() !== 1;
-    }
-    return FALSE;
-  }
-
-  /**
-   * Delete items from the index.
-   */
-  public function deleteIndexItems(array $configuration, IndexInterface $index, array $item_ids): void {
-    $this->deleteItems($configuration, $item_ids);
-  }
-
 }
