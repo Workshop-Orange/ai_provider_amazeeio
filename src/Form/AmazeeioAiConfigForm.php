@@ -455,6 +455,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       '#prefix' => '<div id="amazee-ai-config-form">',
       '#suffix' => '</div>',
     ];
+    $support_note = '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>';
 
     if ($state === static::STATE_DISCONNECTED) {
       $ajax['markup'] = [
@@ -476,7 +477,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         '#attributes' => ['class' => ['button', 'button--primary']],
       ];
       $ajax['support_note'] = [
-        '#markup' => '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>',
+        '#markup' => $support_note,
       ];
     }
 
@@ -497,7 +498,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         '#attributes' => ['class' => ['button', 'button--primary']],
       ];
       $ajax['support_note'] = [
-        '#markup' => '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>',
+        '#markup' => $support_note,
       ];
     }
 
@@ -510,6 +511,9 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         $response_body = json_decode((string) $response->getBody(), TRUE);
         $error_message = $response_body['detail'] ?? $e->getMessage();
         $this->messenger()->addError($this->t('An error occurred while retrieving the available regions. @error. Please consult the Drupal error log for full details.', ['@error' => rtrim($error_message, '.')]));
+      }
+      catch (\Exception $e) {
+        $this->messenger()->addError($this->t('An error occurred while retrieving the available regions. @error. Please consult the Drupal error log for full details.', ['@error' => rtrim($e->getMessage(), '.')]));
       }
 
       // Check if we already have a key for this host.
@@ -604,8 +608,24 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         '#attributes' => ['class' => ['button', 'button--primary']],
         '#submit' => ['::submitCreateNewKey', '::submitForm'],
       ];
+
+      if (empty($regions)) {
+        $ajax['regions_unavailable'] = [
+          '#type' => 'html_tag',
+          '#tag' => 'p',
+          '#value' => $this->t('No regions are currently available. Please try again, or if the problem persists, contact the amazee.ai team via email ai.support[at]amazee.io'),
+          '#attributes' => ['class' => ['messages', 'messages--warning']],
+        ];
+        $ajax['retry_regions'] = [
+          '#type' => 'submit',
+          '#value' => $this->t('Retry'),
+          '#name' => 'retry_regions',
+          '#attributes' => ['class' => ['button']],
+          '#submit' => ['::submitForm'],
+        ];
+      }
       $ajax['support_note'] = [
-        '#markup' => '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>',
+        '#markup' => $support_note,
       ];
     }
 
@@ -707,7 +727,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
         ],
       ];
       $ajax['support_note'] = [
-        '#markup' => '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>',
+        '#markup' => $support_note,
       ];
 
       // Because the "models" are evaluated above, we handle the refresh logic
