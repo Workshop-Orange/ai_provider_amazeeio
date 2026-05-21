@@ -349,6 +349,38 @@ class PostgresPgvectorClient {
   }
 
   /**
+   * Delete all rows from a collection that belong to a specific index.
+   *
+   * @param string $collection_name
+   *   The collection name.
+   * @param string $index_id
+   *   The Search API index ID.
+   * @param \PgSql\Connection $connection
+   *   The Postgres connection.
+   *
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DeleteFromCollectionException
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
+   */
+  public function deleteByIndexId(
+    string $collection_name,
+    string $index_id,
+    Connection $connection,
+  ): void {
+    $escaped_collection_name = $this->escapeIdentifierForSql(
+      identifier_to_escape: $collection_name,
+      connection: $connection,
+    );
+    $result = pg_query_params(
+      connection: $connection,
+      query: "DELETE FROM {$escaped_collection_name} WHERE index_id = $1;",
+      params: [$index_id],
+    );
+    if (!$result) {
+      throw new DeleteFromCollectionException(message: pg_last_error(connection: $connection));
+    }
+  }
+
+  /**
    * Returns a list of relational tables for the collection.
    *
    * It works under the assumption that relation tables use the "__" prefix for

@@ -3,25 +3,25 @@
 namespace Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider;
 
 use Drupal\ai\Base\AiVdbProviderClientBase;
-use Drupal\Core\Messenger\MessengerInterface;
-use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\Component\Plugin\DependentPluginInterface;
-use Drupal\key\KeyRepositoryInterface;
-use PgSql\Connection;
 use Drupal\ai\Enum\VdbSimilarityMetrics;
-use Drupal\ai_search\EmbeddingStrategyInterface;
-use Drupal\Core\Config\ImmutableConfig;
-use Drupal\Core\Logger\LoggerChannelTrait;
-use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
-use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Drupal\search_api\IndexInterface;
-use Drupal\search_api\Query\ConditionGroupInterface;
-use Drupal\search_api\Query\QueryInterface;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\CreateCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DeleteFromCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DropCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient;
+use Drupal\ai_search\EmbeddingStrategyInterface;
+use Drupal\Component\Plugin\DependentPluginInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\ImmutableConfig;
+use Drupal\Core\Logger\LoggerChannelTrait;
+use Drupal\Core\Messenger\MessengerInterface;
+use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\Core\StringTranslation\StringTranslationTrait;
+use Drupal\key\KeyRepositoryInterface;
+use Drupal\search_api\IndexInterface;
+use Drupal\search_api\Query\ConditionGroupInterface;
+use Drupal\search_api\Query\QueryInterface;
+use PgSql\Connection;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -605,6 +605,32 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
         'ai_provider_amazeeio.settings',
       ],
     ];
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * Overrides the parent to delete only rows belonging to the given index
+   * rather than dropping and recreating the entire collection table, which
+   * would destroy data from other indexes sharing the same collection.
+   *
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
+   * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
+   */
+  public function deleteAllIndexItems(array $configuration, IndexInterface $index, $datasource_id = NULL): void {
+    try {
+      $this->getClient()->deleteByIndexId(
+        collection_name: $configuration['database_settings']['collection'],
+        index_id: $index->id(),
+        connection: $this->getConnection($configuration['database_settings']['database_name']),
+      );
+    }
+    catch (DeleteFromCollectionException $e) {
+      $this->getLogger(self::LOGGER_CHANNEL)->warning(
+        message: 'Delete all index items error: ' . $e->getMessage(),
+      );
+    }
   }
 
 }
