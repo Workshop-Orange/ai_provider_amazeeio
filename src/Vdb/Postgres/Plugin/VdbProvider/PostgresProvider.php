@@ -471,6 +471,17 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
 
       $fieldData = $index->getField($condition->getField());
       if ($fieldData) {
+        // Only "Filterable attributes" fields have a backing column or
+        // relation table in the VDB (see PostgresPgvectorClient::updateFields).
+        // Conditions on other fields would target a column or relation table
+        // that does not exist, so skip them with a warning.
+        if (!$this->getClient()->shouldHaveColumn($fieldData)) {
+          $this->messenger->addWarning('Field @field is not configured as a filterable attribute on @index and cannot be used in conditions.', [
+            '@field' => $condition->getField(),
+            '@index' => $index->id(),
+          ]);
+          continue;
+        }
         $fieldType = $fieldData->getType();
         $isMultiple = FALSE;
       }

@@ -2,6 +2,7 @@
 
 namespace Drupal\ai_provider_amazeeio\Vdb\Postgres;
 
+use Drupal\ai\Enum\EmbeddingStrategyIndexingOptions;
 use Drupal\ai\Enum\VdbSimilarityMetrics;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\AddFieldIfNotExistsException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\CreateCollectionException;
@@ -13,10 +14,12 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\GetCollectionsException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\InsertIntoCollectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\QuerySearchException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\VectorSearchException;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Field\TypedData\FieldItemDataDefinitionInterface;
+use Drupal\search_api\Item\FieldInterface;
 use Drupal\search_api\Utility\FieldsHelperInterface;
 use Drupal\search_api\Utility\Utility;
 use PgSql\Connection;
@@ -34,10 +37,13 @@ class PostgresPgvectorClient {
    *   when Search API is enabled.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   The entity type manager.
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
+   *   The config factory, used to read ai_search indexing options.
    */
   public function __construct(
     private readonly ?FieldsHelperInterface $fieldHelper,
     private readonly EntityTypeManagerInterface $entityTypeManager,
+    private readonly ConfigFactoryInterface $configFactory,
   ) {}
 
   protected const DATA_TYPE_MAPPING = [
@@ -637,6 +643,34 @@ class PostgresPgvectorClient {
   }
 
   /**
+   * Determine whether a Search API field should have its own DB column.
+   *
+   * Only fields configured as "Filterable attributes" in the ai_search index
+   * configuration receive a per-record value at index time (see
+   * \Drupal\ai_search\Plugin\EmbeddingStrategy\EmbeddingBase::buildBaseMetadata()).
+   * Fields configured as "Main content" or "Contextual content" are folded
+   * into the chunked `content` text, and fields configured as "Ignore" (or
+   * with no indexing option set) are not indexed at all. Creating dedicated
+   * columns for the latter groups leaves permanently-NULL columns behind.
+   *
+   * @param \Drupal\search_api\Item\FieldInterface $field
+   *   The Search API field.
+   *
+   * @return bool
+   *   TRUE if the field is configured as a filterable attribute on its index.
+   */
+  public function shouldHaveColumn(FieldInterface $field): bool {
+    $index = $field->getIndex();
+    if (!$index) {
+      return FALSE;
+    }
+    $config = $this->configFactory->get('ai_search.index.' . $index->id())->getRawData();
+    $indexing_options = $config['indexing_options'] ?? [];
+    $option = $indexing_options[$field->getFieldIdentifier()]['indexing_option'] ?? NULL;
+    return $option === EmbeddingStrategyIndexingOptions::Attributes->getKey();
+  }
+
+  /**
    * {@inheritdoc}
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
@@ -645,6 +679,9 @@ class PostgresPgvectorClient {
   public function updateFields($fields, string $collection_name, Connection $connection): void {
     /** @var \Drupal\search_api\Item\FieldInterface $field */
     foreach ($fields as $field) {
+      if (!$this->shouldHaveColumn($field)) {
+        continue;
+      }
       $field_data_definition = $field->getDataDefinition();
       if ($field_data_definition instanceof FieldItemDataDefinitionInterface) {
         $isMultiple = TRUE;
