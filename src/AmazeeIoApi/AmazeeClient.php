@@ -333,7 +333,7 @@ class AmazeeClient implements ClientInterface {
       return NULL;
     }
 
-    $this->logger->error('Existing private key @id does not exist.', ['@id' => $api_key]);
+    $this->logger->error('Existing private key @id does not exist.', ['@id' => substr($api_key, 0, 8) . '...']);
     return NULL;
   }
 

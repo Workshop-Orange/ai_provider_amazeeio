@@ -78,7 +78,7 @@ class PostgresPgvectorClient {
       $database = $default_database;
     }
     $connection = pg_connect(
-      connection_string: "host={$host} dbname={$database} port={$port} user={$username} password={$password}"
+      connection_string: "host=" . addcslashes($host, "'\\") . " dbname=" . addcslashes($database, "'\\") . " port=" . (int) $port . " user=" . addcslashes($username, "'\\") . " password=" . addcslashes($password, "'\\")
     );
     if (!$connection) {
       throw new DatabaseConnectionException(
@@ -128,7 +128,7 @@ class PostgresPgvectorClient {
     );
     $result = pg_query(
       connection: $connection,
-      query: "CREATE TABLE {$escaped_collection_name} (id bigserial PRIMARY KEY, content VARCHAR, drupal_entity_id VARCHAR, drupal_long_id VARCHAR, server_id VARCHAR, index_id VARCHAR, embedding vector({$dimension}));"
+      query: "CREATE TABLE {$escaped_collection_name} (id bigserial PRIMARY KEY, content VARCHAR, drupal_entity_id VARCHAR, drupal_long_id VARCHAR, server_id VARCHAR, index_id VARCHAR, embedding vector(" . (int) $dimension . "));"
     );
     if (!$result) {
       throw new CreateCollectionException(message: pg_last_error(connection: $connection));
@@ -436,6 +436,8 @@ class PostgresPgvectorClient {
       connection: $connection,
     );
     $prepared_output_fields = $this->prepareFieldArrayForSql(fields: $output_fields, connection: $connection, collection_name: $collection_name);
+    $limit = (int) $limit;
+    $offset = (int) $offset;
     if (empty($filters)) {
       $query = "SELECT {$prepared_output_fields} FROM {$escaped_collection_name} LIMIT {$limit} OFFSET {$offset};";
     }
@@ -476,6 +478,8 @@ class PostgresPgvectorClient {
     );
     $prepared_output_fields = $this->prepareFieldArrayForSql(fields: $output_fields, connection: $connection, collection_name: $collection_name);
     $vectors = $this->prepareVectorArrayForSql(vector: $vector_input, connection: $connection);
+    $limit = (int) $limit;
+    $offset = (int) $offset;
     // Escape the output fields.
     $escaped_outfield_fields = array_map(
       callback: fn($field) => $this->escapeIdentifierForSql(identifier_to_escape: $field, connection: $connection),
@@ -765,9 +769,9 @@ class PostgresPgvectorClient {
    */
   protected function prepareRelationQuery($collection_name, $field_name, $field_data, $connection) {
     $query = '';
-    $escaped_collection_name_id_sequence = $this->escapeIdentifierForSql(
-      identifier_to_escape: "{$collection_name}_id_seq",
-      connection: $connection,
+    $escaped_collection_name_id_sequence = pg_escape_literal(
+      $connection,
+      "{$collection_name}_id_seq",
     );
     // Prepare entries for relation table.
     $escaped_relation_table_name = $this->getRelationTableName($collection_name, $field_name, $connection);
@@ -781,7 +785,7 @@ class PostgresPgvectorClient {
         continue;
       }
       $escaped_field_value = $this->escapeStringForSql(string_to_escape: (string) $value, connection: $connection);
-      $field_values_to_insert[] = "({$escaped_field_value}, currval('{$escaped_collection_name_id_sequence}'))";
+      $field_values_to_insert[] = "({$escaped_field_value}, currval({$escaped_collection_name_id_sequence}))";
     }
 
     if (!empty($field_values_to_insert)) {

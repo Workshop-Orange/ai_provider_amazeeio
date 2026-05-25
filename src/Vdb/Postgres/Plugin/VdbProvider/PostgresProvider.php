@@ -537,7 +537,15 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
       }
       else {
         $operator = $condition->getOperator();
-        $filters[] = '(' . $fieldData->getFieldIdentifier() . ' ' . $operator . ' ' . $normalizedValues . ')';
+        $allowed_operators = ['=', '!=', '<>', '>', '<', '>=', '<=', 'IN', 'NOT IN', 'LIKE', 'NOT LIKE', 'BETWEEN'];
+        if (!in_array($operator, $allowed_operators, TRUE)) {
+          $this->messenger->addWarning('Operator @operator is not supported.', [
+            '@operator' => $operator,
+          ]);
+          continue;
+        }
+        $escaped_field = $this->getClient()->escapeIdentifierForSql($fieldData->getFieldIdentifier(), $connection);
+        $filters[] = '(' . $escaped_field . ' ' . $operator . ' ' . $normalizedValues . ')';
       }
     }
     return [$filters, array_unique($joins)];

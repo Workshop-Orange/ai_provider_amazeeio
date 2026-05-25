@@ -168,17 +168,15 @@ final class TrialAccountProvisioner implements TrialAccountProvisionerInterface 
         $data = json_decode($raw, flags: JSON_THROW_ON_ERROR);
       }
       catch (\JsonException) {
-        throw new TrialAccountProvisioningException(sprintf(
-          'Malformed response from the server, expected JSON, got: %s',
-          $raw
-        ));
+        throw new TrialAccountProvisioningException(
+          'Malformed response from the server, expected JSON.'
+        );
       }
 
       if (!isset($data->key, $data->token)) {
-        throw new TrialAccountProvisioningException(sprintf(
-          'Unexpected payload returned by the server, expected "key" and "token", got: %s',
-          print_r($data, TRUE)
-        ));
+        throw new TrialAccountProvisioningException(
+          'Unexpected payload returned by the server, expected "key" and "token" fields.'
+        );
       }
 
       $this->progressReporter->finish('Trial credentials received.');
