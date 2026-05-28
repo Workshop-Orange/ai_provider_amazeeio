@@ -442,29 +442,66 @@ class AmazeeClient implements ClientInterface {
       $headers['Authorization'] = 'Bearer ' . $this->authToken;
     }
 
-    $body = $body ? json_encode($body) : NULL;
+    $encodedBody = $body ? json_encode($body) : NULL;
 
-    return match ($type) {
-      'GET' => $this->client->get(
-        $this->host . $endpoint, [
-          'headers' => $headers,
-          'body' => $body,
-        ]
-      ),
-      'POST' => $this->client->post(
-        $this->host . $endpoint, [
-          'headers' => $headers,
-          'body' => $body,
-        ]
-      ),
-      'DELETE' => $this->client->delete(
-        $this->host . $endpoint, [
-          'headers' => $headers,
-          'body' => $body,
-        ]
-      ),
-      default => throw new \InvalidArgumentException('Only GET, POST and DELETE request types are supported.'),
-    };
+    $maxRetries = 3;
+    // Base delay in milliseconds.
+    $baseDelay = 1000;
+
+    for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+      try {
+        return match ($type) {
+          'GET' => $this->client->get(
+            $this->host . $endpoint, [
+              'headers' => $headers,
+              'body' => $encodedBody,
+            ]
+          ),
+          'POST' => $this->client->post(
+            $this->host . $endpoint, [
+              'headers' => $headers,
+              'body' => $encodedBody,
+            ]
+          ),
+          'DELETE' => $this->client->delete(
+            $this->host . $endpoint, [
+              'headers' => $headers,
+              'body' => $encodedBody,
+            ]
+          ),
+          default => throw new \InvalidArgumentException('Only GET, POST and DELETE request types are supported.'),
+        };
+      }
+      catch (GuzzleException $e) {
+        // Don't retry on 4xx client errors (except 401 which may be transient
+        // when the upstream auth DB is temporarily unreachable).
+        if ($e instanceof ClientException) {
+          $statusCode = $e->getResponse()->getStatusCode();
+          if ($statusCode !== 401 && $statusCode >= 400 && $statusCode < 500) {
+            throw $e;
+          }
+        }
+
+        if ($attempt === $maxRetries) {
+          throw $e;
+        }
+
+        // Exponential backoff with jitter: 1s, 2s, 4s (±25%).
+        $delay = $baseDelay * (2 ** $attempt);
+        $jitter = (int) ($delay * 0.25 * (mt_rand() / mt_getrandmax() * 2 - 1));
+        usleep(($delay + $jitter) * 1000);
+
+        $this->logger->warning('Retrying request to @endpoint (attempt @attempt of @max): @message', [
+          '@endpoint' => $endpoint,
+          '@attempt' => $attempt + 1,
+          '@max' => $maxRetries,
+          '@message' => $e->getMessage(),
+        ]);
+      }
+    }
+
+    // This should never be reached, but satisfies static analysis.
+    throw new \RuntimeException('Unexpected state in makeRequest retry loop.');
   }
 
 }
