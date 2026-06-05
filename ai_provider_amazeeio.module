@@ -154,13 +154,19 @@ function ai_provider_amazeeio_config_ignore_ignored_alter(ConfigIgnoreConfig $co
   ];
   // More credentials.
   $settings = \Drupal::config('ai_provider_amazeeio.settings');
-  $ai_key = Key::load($settings->get('api_key'));
-  if ($ai_key && $ai_key->getKeyProvider() instanceof ConfigKeyProvider) {
-    $config_list[] = 'key.key.amazeeio_ai:key_provider_settings.key_value';
+  $api_key_id = $settings->get('api_key');
+  if (!empty($api_key_id) && is_string($api_key_id)) {
+    $ai_key = Key::load($api_key_id);
+    if ($ai_key && $ai_key->getKeyProvider() instanceof ConfigKeyProvider) {
+      $config_list[] = 'key.key.amazeeio_ai:key_provider_settings.key_value';
+    }
   }
-  $vdb_key = Key::load($settings->get('postgres_password'));
-  if ($vdb_key && $vdb_key->getKeyProvider() instanceof ConfigKeyProvider) {
-    $config_list[] = 'key.key.amazeeio_ai_database:key_provider_settings.key_value';
+  $db_password_id = $settings->get('postgres_password');
+  if (!empty($db_password_id) && is_string($db_password_id)) {
+    $vdb_key = Key::load($db_password_id);
+    if ($vdb_key && $vdb_key->getKeyProvider() instanceof ConfigKeyProvider) {
+      $config_list[] = 'key.key.amazeeio_ai_database:key_provider_settings.key_value';
+    }
   }
 
   if (\Drupal::moduleHandler()->moduleExists('ai_search')) {
