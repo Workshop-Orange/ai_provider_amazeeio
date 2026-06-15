@@ -40,3 +40,7 @@ services:
       $apiClient: '@ai_provider_amazeeio.api_client'
       $logger: '@logger.channel.ai_provider_amazeeio'
       $dryRun: '%ai_provider_amazeeio.trial_access_provisioning.disable%'
+
+  Drupal\ai_provider_amazeeio\Hook\AiProviderAmazeeioHooks:
+    class: Drupal\ai_provider_amazeeio\Hook\AiProviderAmazeeioHooks
+    autowire: true
