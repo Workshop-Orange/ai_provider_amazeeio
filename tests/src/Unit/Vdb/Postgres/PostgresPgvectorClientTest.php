@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\ai_provider_amazeeio\Unit\Vdb\Postgres;
 
+use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
@@ -89,6 +90,36 @@ final class PostgresPgvectorClientTest extends UnitTestCase {
       'ignore does not' => ['ignore', FALSE],
       'missing entry does not' => [NULL, FALSE],
     ];
+  }
+
+  /**
+   * Tests that getConnection throws DatabaseConnectionException.
+   */
+  public function testGetConnectionThrowsException(): void {
+    $config_factory = $this->createMock(ConfigFactoryInterface::class);
+    $client = new PostgresPgvectorClient(
+      $this->createMock(FieldsHelperInterface::class),
+      $this->createMock(EntityTypeManagerInterface::class),
+      $config_factory,
+    );
+
+    $this->expectException(DatabaseConnectionException::class);
+    if (!function_exists('pg_connect')) {
+      $this->expectExceptionMessage('The PHP PostgreSQL extension (ext-pgsql) is not found.');
+    }
+    else {
+      $this->expectExceptionMessage('Cannot connect to Postgres database using provided connection details');
+    }
+
+    // Suppress any native PHP warnings emitted by pg_connect when
+    // trying to connect to a non-existent database server.
+    @$client->getConnection(
+      host: 'localhost',
+      port: 5432,
+      username: 'invalid_user',
+      password: 'invalid_password',
+      default_database: 'invalid_db'
+    );
   }
 
 }

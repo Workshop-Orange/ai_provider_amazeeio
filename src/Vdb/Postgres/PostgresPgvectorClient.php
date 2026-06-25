@@ -74,6 +74,11 @@ class PostgresPgvectorClient {
     string $default_database,
     ?string $database = NULL,
   ): Connection|FALSE {
+    if (!function_exists('pg_connect')) {
+      throw new DatabaseConnectionException(
+        message: 'The PHP PostgreSQL extension (ext-pgsql) is not found.',
+      );
+    }
     if (!isset($database) || $database === 'default') {
       $database = $default_database;
     }
