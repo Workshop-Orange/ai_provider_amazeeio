@@ -23,15 +23,21 @@ variables:
   _ALL_VALIDATE_ALLOW_FAILURE: 0
   _CSPELL_IGNORE_PATHS: "'.cspell-project-words.txt'"
 
-# Build the documentation site with Zensical and publish it to GitLab Pages.
-# Runs on the default branch whenever a commit touches the docs or the
-# Zensical/CI config (no cron; each qualifying commit rebuilds).
+# Build the documentation site with Zensical and publish it (flat) to the
+# GitLab Pages root, so https://project.pages.drupalcode.org/ai_provider_amazeeio/
+# serves the docs directly. Runs on the stable docs branch whenever a commit
+# touches the docs or the Zensical/CI config (no cron; each qualifying commit
+# rebuilds).
+#
+# NOTE: this deploys 1.3.x, not $CI_DEFAULT_BRANCH — the default branch (2.0.x)
+# has no docs yet. When 2.0.x gains docs, revisit this to publish versioned
+# paths (e.g. GitLab Pages path_prefix) with a root redirect.
 pages:
   stage: .post
   rules:
     - if: '$CI_COMMIT_TAG'   # skip tags
       when: never
-    - if: '$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH != "1.3.x"'
       when: never
     - changes:
         - docs/**/*
