@@ -219,7 +219,9 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       ];
     }
 
-    $this->cacheDefault->set($cacheId, $result, time() + 10);
+    // Cache for 5 minutes; liveness need not be real-time and the dashboard
+    // has a manual "Check Health" button for on-demand refresh.
+    $this->cacheDefault->set($cacheId, $result, time() + 300);
 
     return $result;
   }
@@ -262,6 +264,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
           'Authorization' => "Bearer $apiKey",
           'Content-Type' => 'application/json',
         ],
+        'timeout' => 5,
       ]);
 
       $data = json_decode((string) $response->getBody(), TRUE);
@@ -291,7 +294,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
    * Fetch available models from the LLM host.
    *
    * @return array
-   *   Array of model data with id, token cost, and description.
+   *   Array of model data with id and description.
    */
   private function getLlmHostModels(): array {
     $config = $this->configFactory->get(static::CONFIG_NAME);
@@ -310,11 +313,15 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     }
 
     try {
-      $response = $this->httpClient->get($host . '/models', [
+      // Use /model/info rather than /models: the OpenAI-style /models list
+      // only carries the id, whereas /model/info exposes the human-readable
+      // description in model_info.metadata.
+      $response = $this->httpClient->get($host . '/model/info', [
         'headers' => [
           'Authorization' => "Bearer $apiKey",
           'Content-Type' => 'application/json',
         ],
+        'timeout' => 5,
       ]);
 
       $data = json_decode((string) $response->getBody(), TRUE);
@@ -327,10 +334,10 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
 
       $models = [];
       foreach ($data['data'] as $model) {
+        $metadata = $model['model_info']['metadata'] ?? '';
         $models[] = [
-          'id' => $model['id'] ?? '',
-          'token_cost' => $this->formatTokenCost($model['pricing'] ?? []),
-          'description' => $model['description'] ?? '',
+          'id' => $model['model_name'] ?? '',
+          'description' => \is_string($metadata) ? $metadata : '',
         ];
       }
 
@@ -342,31 +349,6 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       $this->cacheDefault->set($cacheId, $result, time() + 60);
       return $result;
     }
-  }
-
-  /**
-   * Format token cost from pricing data.
-   *
-   * @param array $pricing
-   *   The pricing array from the model data.
-   *
-   * @return string
-   *   Formatted token cost string.
-   */
-  private function formatTokenCost(array $pricing): string {
-    if (empty($pricing)) {
-      return '-';
-    }
-
-    $parts = [];
-    if (isset($pricing['prompt'])) {
-      $parts[] = 'Prompt: ' . $pricing['prompt'];
-    }
-    if (isset($pricing['completion'])) {
-      $parts[] = 'Completion: ' . $pricing['completion'];
-    }
-
-    return !empty($parts) ? implode(', ', $parts) : '-';
   }
 
   /**
@@ -455,7 +437,8 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       '#prefix' => '<div id="amazee-ai-config-form">',
       '#suffix' => '</div>',
     ];
-    $support_note = '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>';
+    $support_note = '<p><small>' . $this->t('Need support? Contact the amazee.ai team via email ai.support[at]amazee.io') . '</small></p>'
+      . '<p><small>' . $this->t('Manage your account at <a href=":url" target="_blank" rel="noopener">my.amazee.io</a>', [':url' => 'https://my.amazee.io']) . '</small></p>';
 
     if ($state === static::STATE_DISCONNECTED) {
       $ajax['markup'] = [

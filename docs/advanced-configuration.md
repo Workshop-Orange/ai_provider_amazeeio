@@ -6,14 +6,15 @@ However, storing secrets inside configuration is not always appropriate — espe
 
 ---
 
-## The Two Managed Keys
+## The Managed Keys
 
 | Key ID | Label | What it stores |
 |---|---|---|
 | `amazeeio_ai` | amazee.ai AI API Key | The LiteLLM bearer token used to call the LLM gateway |
 | `amazeeio_ai_database` | amazee.ai AI Database Key | The password for the managed pgvector VectorDB |
+| `amazeeio_ai_management_token` | amazee.ai Management Token | An account token used only to display team/account details on the settings page (created by the UI sign-in flow, **not** by the recipe) |
 
-Both keys are created automatically when you connect the module. The module reads the key IDs from `ai_provider_amazeeio.settings`:
+The first two keys are required and are created automatically when you connect the module. The management token is optional — the LLM and VectorDB work without it. The module reads the two required key IDs from `ai_provider_amazeeio.settings`:
 
 ```yaml
 api_key: amazeeio_ai

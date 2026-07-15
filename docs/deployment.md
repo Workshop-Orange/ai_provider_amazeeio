@@ -68,7 +68,7 @@ Staging should validate behaviour as close to production as possible. Recommende
 
 - Store keys in a secrets manager (Vault, AWS Secrets Manager, Lagoon secrets) — see [Advanced Configuration](advanced-configuration.md).
 - Never expose key values in version-controlled config exports.
-- Set up monitoring and alerting on your amazee.ai account's budget via the [amazee.ai dashboard](https://amazee.ai).
+- Set up monitoring and alerting on your amazee.ai account's budget via the [amazee.io account portal](https://my.amazee.io).
 
 ---
 

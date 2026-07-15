@@ -121,5 +121,12 @@
 
 .ai-models-section table th:first-child,
 .ai-models-section table td:first-child {
-  width: 40%;
+  width: 1%;
+  padding-right: 2rem;
+  white-space: nowrap;
+}
+
+.ai-models-section table th:last-child,
+.ai-models-section table td:last-child {
+  width: auto;
 }

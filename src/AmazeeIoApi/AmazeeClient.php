@@ -195,8 +195,16 @@ class AmazeeClient implements ClientInterface {
    * {@inheritdoc}
    */
   public function authorized(): bool {
+    // An empty token can never authorize (makeRequest only sends the
+    // Authorization header when a token is set), so skip the guaranteed-401
+    // round trip entirely.
+    if ($this->authToken === '') {
+      return FALSE;
+    }
     try {
-      $response = $this->makeRequest('GET', '/auth/me');
+      // A 401 here means "this token is not valid", which is the expected
+      // answer, not a transient fault — so don't burn the retry budget on it.
+      $response = $this->makeRequest('GET', '/auth/me', retry: FALSE);
       $response_body = json_decode($response->getBody());
       $this->teamId = (int) $response_body->team_id;
       return TRUE;
@@ -421,6 +429,8 @@ class AmazeeClient implements ClientInterface {
    *   Optional body parameters to send.
    * @param array $headers
    *   Optional additional headers to send.
+   * @param bool $retry
+   *   Whether to retry on transient (5xx/401) failures. Defaults to TRUE.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The response from the API.
@@ -428,7 +438,7 @@ class AmazeeClient implements ClientInterface {
    * @throws \GuzzleHttp\Exception\GuzzleException|\Exception
    *   If the request fails.
    */
-  protected function makeRequest(string $type, string $endpoint, ?array $body = NULL, array $headers = []): ResponseInterface {
+  protected function makeRequest(string $type, string $endpoint, ?array $body = NULL, array $headers = [], bool $retry = TRUE): ResponseInterface {
     if (empty($this->host)) {
       throw new \Exception('Missing host');
     }
@@ -444,31 +454,24 @@ class AmazeeClient implements ClientInterface {
 
     $encodedBody = $body ? json_encode($body) : NULL;
 
-    $maxRetries = 3;
+    // Fail fast on a slow-but-alive host rather than blocking on the client
+    // default.
+    $requestOptions = [
+      'headers' => $headers,
+      'body' => $encodedBody,
+      'timeout' => 5,
+    ];
+
+    $maxRetries = $retry ? 3 : 0;
     // Base delay in milliseconds.
     $baseDelay = 1000;
 
     for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
       try {
         return match ($type) {
-          'GET' => $this->client->get(
-            $this->host . $endpoint, [
-              'headers' => $headers,
-              'body' => $encodedBody,
-            ]
-          ),
-          'POST' => $this->client->post(
-            $this->host . $endpoint, [
-              'headers' => $headers,
-              'body' => $encodedBody,
-            ]
-          ),
-          'DELETE' => $this->client->delete(
-            $this->host . $endpoint, [
-              'headers' => $headers,
-              'body' => $encodedBody,
-            ]
-          ),
+          'GET' => $this->client->get($this->host . $endpoint, $requestOptions),
+          'POST' => $this->client->post($this->host . $endpoint, $requestOptions),
+          'DELETE' => $this->client->delete($this->host . $endpoint, $requestOptions),
           default => throw new \InvalidArgumentException('Only GET, POST and DELETE request types are supported.'),
         };
       }
