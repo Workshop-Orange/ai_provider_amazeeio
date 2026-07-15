@@ -10,6 +10,7 @@ copyright = "Copyright &copy; amazee.io"
 
 nav = [
     { "Home" = "index.md" },
+    { "Vector Database" = "vector-database.md" },
     { "Advanced Configuration" = "advanced-configuration.md" },
     { "Deployment Guide" = "deployment.md" },
 ]

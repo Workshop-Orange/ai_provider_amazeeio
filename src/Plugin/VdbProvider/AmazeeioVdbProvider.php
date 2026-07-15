@@ -62,8 +62,36 @@ class AmazeeioVdbProvider extends PostgresProvider {
   ): array {
     $form = parent::buildSettingsForm($form, $form_state, $configuration);
     $config = $this->getConfig();
+
+    // Add an introductory help block explaining how the amazee.ai VectorDB
+    // is provisioned, what the user can and cannot change, and how the
+    // dimension count is decided. This guidance was previously only
+    // available by reading the source.
+    $form['amazeeio_vdb_help'] = [
+      '#type' => 'details',
+      '#title' => $this->t('About the amazee.ai Vector Database'),
+      '#open' => FALSE,
+      '#weight' => -10,
+      'content' => [
+        '#markup' => '<p>' . $this->t('Your amazee.ai private AI key includes a dedicated PostgreSQL database with the <a href=":pgvector">pgvector</a> extension enabled. The connection details (host, port, username, password and database name) are configured automatically when you connect on the <a href=":provider">amazee.ai provider settings page</a>.', [
+          ':pgvector' => 'https://github.com/pgvector/pgvector',
+          ':provider' => '/admin/config/ai/providers/amazeeio',
+        ]) . '</p>'
+        . '<ul>'
+        . '<li>' . $this->t('<strong>Database Name</strong> is pre-filled with the database that amazee.ai allocated to your key. You generally should not change it.') . '</li>'
+        . '<li>' . $this->t('<strong>Collection</strong> is the name of the table that will be created inside that database to hold the vectors for this server. The default is <code>amazee_ai</code>. The collection is created on save and cannot be renamed afterwards. Use only letters, numbers and underscores. If you plan to run more than one Search API server against the same database, give each one a unique collection name.') . '</li>'
+        . '<li>' . $this->t('<strong>Number of dimensions</strong> is <em>not</em> set here. It is taken from the embedding model you select on this same form (under "Embeddings Engine"). Different models produce vectors of different sizes (some commonly used models use 1024 dimensions, others larger or smaller); refer to the documentation of the embedding model you choose for its exact value. Once a collection is created with a given dimension, every embedding written to it must match.') . '</li>'
+        . '<li>' . $this->t('<strong>Similarity Metric</strong> defaults to Cosine Similarity, which is the right choice for most modern embedding models. Only change it if your embedding model documentation explicitly recommends Euclidean Distance or Inner Product.') . '</li>'
+        . '</ul>',
+      ],
+    ];
+
     $form['database_name']['#default_value'] = $configuration['database_settings']['database_name'] ?? $config->get(key: 'postgres_default_database');
+    $form['database_name']['#description'] = $this->t('The PostgreSQL database name. Pre-filled from your amazee.ai allocation; usually leave this as-is.');
+
     $form['collection']['#default_value'] = $configuration['database_settings']['collection'] ?? 'amazee_ai';
+    $form['collection']['#description'] = $this->t('The collection (table) to use inside the database. Created on save if it does not exist, and cannot be renamed afterwards. Default: <code>amazee_ai</code>. Use a unique name per Search API server if you have more than one.');
+
     return $form;
   }
 

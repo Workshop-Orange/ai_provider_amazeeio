@@ -120,5 +120,6 @@ When contacting support, please include:
 
 ## Further Reading
 
+- [Using the amazee.ai Vector Database](vector-database.md) — How to wire up the included VectorDB to a Search API server, what the Collection / Database Name / Similarity Metric settings mean, and how the vector dimension is determined.
 - [Advanced Configuration](advanced-configuration.md) — How to manage API keys and the VectorDB password outside of the default config-based Key module setup (e.g., environment variables, AWS Secrets Manager, or Lagoon secrets).
 - [Deployment Guide](deployment.md) — Best practices and trade-offs for running amazee.ai across local, development, staging, and production environments, including key-sharing strategies for the VectorDB / Search AI use case.
