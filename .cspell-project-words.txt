@@ -4,11 +4,13 @@ amazeeio
 autohide
 behaviour
 betterem
+ciphertext
 currval
 flac
 fontawesome
 glightbox
 inlinehilite
+libsodium
 linenums
 litellm
 lucide
