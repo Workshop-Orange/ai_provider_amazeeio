@@ -2,7 +2,7 @@
 
 By default the amazee.ai provider stores both credentials — the LLM API key and the VectorDB password — inside Drupal's configuration system via the [Key module](https://www.drupal.org/project/key) using the **Configuration** key provider. This is the simplest setup and works out of the box.
 
-However, storing secrets inside configuration is not always appropriate — especially when config is exported to version control (e.g. via `config/sync`). This page documents how to use alternative key providers so that secrets never leave a secure storage backend.
+However, storing secrets inside configuration is not always appropriate — especially when config is exported to version control (e.g. via `config/sync`). This page documents how to encrypt the stored secrets with [Easy Encryption](https://www.drupal.org/project/easy_encryption), and how to use alternative key providers so that secrets never leave a secure storage backend.
 
 ---
 
@@ -22,6 +22,63 @@ postgres_password: amazeeio_ai_database
 ```
 
 You can point these settings at **any** Key module entity, regardless of which key provider backend that entity uses.
+
+---
+
+## Encrypting the Keys with Easy Encryption (recommended)
+
+The [Easy Encryption](https://www.drupal.org/project/easy_encryption) module encrypts Key values at rest with zero configuration. Instead of the plaintext **Configuration** provider, keys use the **Easy Encrypted** provider: the secret is encrypted with a libsodium sealed box and only the ciphertext is stored in configuration — safe to export and commit to version control.
+
+### New installs: install Easy Encryption first
+
+```bash
+composer require drupal/easy_encryption
+drush en easy_encryption -y
+```
+
+On install, Easy Encryption generates an encryption key pair automatically. It also **transparently upgrades any newly created key** that targets an insecure provider (`config` or `state`) to the Easy Encrypted provider *before* it is saved.
+
+This means: if Easy Encryption is enabled **before** you connect the amazee.ai provider (via the sign-in flow or trial provisioning), the `amazeeio_ai` and `amazeeio_ai_database` keys are encrypted automatically. The credentials never touch the database or config exports in plaintext, and **no changes to this module or your workflow are required**.
+
+### Existing installs: migrating already-created keys
+
+Keys created *before* Easy Encryption was installed keep the plaintext Configuration provider — the automatic upgrade only applies to new keys. Migrate them with Drush:
+
+```bash
+drush php-eval "
+  foreach (['amazeeio_ai', 'amazeeio_ai_database'] as \$id) {
+    \$key = \Drupal::entityTypeManager()->getStorage('key')->load(\$id);
+    if (\$key === NULL || \$key->getKeyProvider()->getPluginId() === 'easy_encrypted') {
+      continue;
+    }
+    \$value = \$key->getKeyValue();
+    \$key->setPlugin('key_provider', 'easy_encrypted');
+    \$key->set('key_provider_settings', []);
+    \$key->setKeyValue(\$value);
+    \$key->save();
+  }
+"
+drush cex -y
+```
+
+Alternatively, delete the two keys at **Configuration → System → Keys** (`/admin/config/system/keys`) and re-run the sign-in flow on the amazee.ai settings page — the recreated keys will be encrypted automatically.
+
+If you have exported plaintext key values to `config/sync` in the past, remember that they remain in your git history. Rotate the credentials (regenerate them via the amazee.ai settings page) after migrating.
+
+### The private key
+
+Encrypted values are decrypted with a private key stored in a `.easy_encryption` directory next to your web root (file permissions 0600), falling back to Drupal's State system if that directory is not writable.
+
+- **Never commit `.easy_encryption` to version control** — add it to `.gitignore`.
+- On Lagoon, persist the directory or move it via `settings.php`:
+  ```php
+  $settings['easy_encryption']['private_key_directory'] = '/app/files/private/.easy_encryption';
+  ```
+- Each environment that needs to *decrypt* (i.e. actually call the LLM/VectorDB) needs the private key. Transfer it between environments with the Key transfer UI (enable the `easy_encryption_admin` sub-module) or by securely copying the `.easy_encryption` directory. See the [Easy Encryption documentation](https://project.pages.drupalcode.org/easy_encryption/) for details.
+
+Check **Reports → Status report** to verify an active encryption key is configured and the private key is available.
+
+> **Easy Encryption vs. environment variables:** Easy Encryption protects the values in config exports and the database, but the private key still lives on the server. For the strongest setup, combine approaches — or skip encryption entirely and keep the secret out of Drupal altogether using the environment-variable provider below.
 
 ---
 
