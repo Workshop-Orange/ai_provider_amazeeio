@@ -5,7 +5,6 @@ namespace Drupal\Tests\ai_provider_amazeeio\Kernel;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\ai_provider_amazeeio_test\MockHttpClient;
 use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Utils;
 
 /**
  * Test class for the API mocking framework.
@@ -55,7 +54,7 @@ class MockHttpClientTest extends KernelTestBase {
     $this->expectExceptionMessage('Missing authentication header');
     $this->client()->get(
       'https://www.amazee.ai/mocked/request', [
-        'body' => Utils::jsonEncode(['message' => 'hello']),
+        'body' => json_encode(['message' => 'hello'], JSON_THROW_ON_ERROR),
       ]
     );
   }
@@ -67,14 +66,14 @@ class MockHttpClientTest extends KernelTestBase {
     $result = $this->client()->get(
       'https://www.amazee.ai/mocked/request', [
         'headers' => ['Authentication' => 'Bearer 1234'],
-        'body' => Utils::jsonEncode(['message' => 'hello']),
+        'body' => json_encode(['message' => 'hello'], JSON_THROW_ON_ERROR),
       ]
     );
     $this->assertEquals(200, $result->getStatusCode());
     $this->assertEquals(
       [
         'uppercase' => 'HELLO',
-      ], Utils::jsonDecode($result->getBody()->getContents(), TRUE)
+      ], json_decode($result->getBody()->getContents(), TRUE, flags: JSON_THROW_ON_ERROR)
     );
   }
 

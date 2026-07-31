@@ -11,7 +11,6 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
-use GuzzleHttp\Utils;
 use Psr\Log\NullLogger;
 
 /**
@@ -36,7 +35,7 @@ final class AmazeeClientModelsCacheTest extends KernelTestBase {
   public function testModelsAreMemoizedPerClientInstance(): void {
     $transactions = [];
     $mock_handler = new MockHandler([
-      new Response(200, [], Utils::jsonEncode([
+      new Response(200, [], json_encode([
         'data' => [
           [
             'model_name' => 'embeddings',
@@ -56,7 +55,7 @@ final class AmazeeClientModelsCacheTest extends KernelTestBase {
             ],
           ],
         ],
-      ])),
+      ], JSON_THROW_ON_ERROR)),
     ]);
     $handler_stack = HandlerStack::create($mock_handler);
     $handler_stack->push(Middleware::history($transactions));
