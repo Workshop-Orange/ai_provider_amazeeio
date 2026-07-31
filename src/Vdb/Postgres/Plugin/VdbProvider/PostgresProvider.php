@@ -326,6 +326,31 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
   /**
    * {@inheritdoc}
    *
+   * Overrides the parent to preserve the index context. The parent forwards
+   * to deleteItems(), which matches rows on drupal_entity_id alone: when
+   * several indexes share one collection, that deletes other indexes' rows
+   * for the same entities. Filtering on index_id keeps the delete scoped to
+   * the index being updated.
+   */
+  public function deleteIndexItems(array $configuration, IndexInterface $index, array $item_ids): void {
+    $vdbIds = $this->getVdbIds(
+      collection_name: $configuration['database_settings']['collection'],
+      drupalIds: $item_ids,
+      database: $configuration['database_settings']['database_name'],
+      index_id: $index->id(),
+    );
+    if ($vdbIds) {
+      $this->deleteFromCollection(
+        collection_name: $configuration['database_settings']['collection'],
+        ids: $vdbIds,
+        database: $configuration['database_settings']['database_name'],
+      );
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
@@ -385,6 +410,10 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
   /**
    * {@inheritdoc}
    *
+   * Accepts an additional optional $index_id: when given, only rows belonging
+   * to that Search API index are matched, so entities that exist in several
+   * indexes sharing the same collection are not mixed up.
+   *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
@@ -394,18 +423,27 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     string $collection_name,
     array $drupalIds,
     string $database = 'default',
+    ?string $index_id = NULL,
   ): array {
     if (empty($drupalIds)) {
       return [];
     }
+    $connection = $this->getConnection($database);
     $prepared_drupal_ids = $this->getClient()->prepareStringArrayForSql(
       items: $drupalIds,
-      connection: $this->getConnection($database)
+      connection: $connection
     );
+    $filters = "WHERE drupal_entity_id IN $prepared_drupal_ids";
+    if ($index_id !== NULL) {
+      $filters .= ' AND index_id IN ' . $this->getClient()->prepareStringArrayForSql(
+        items: [$index_id],
+        connection: $connection
+      );
+    }
     $data = $this->querySearch(
       collection_name: $collection_name,
       output_fields: ['id'],
-      filters: "WHERE drupal_entity_id IN $prepared_drupal_ids",
+      filters: $filters,
       limit: PHP_INT_MAX,
       database: $database
     );
