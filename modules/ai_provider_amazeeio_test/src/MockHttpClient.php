@@ -8,7 +8,6 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
-use GuzzleHttp\Utils;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\HttpFoundation\ParameterBag;
 
@@ -279,7 +278,7 @@ class MockHttpClient extends Client {
    *   The JSON response body as an associative array.
    */
   protected function success(array $body): Response {
-    return new Response(200, [], Utils::jsonEncode($body));
+    return new Response(200, [], json_encode($body, JSON_THROW_ON_ERROR));
   }
 
   /**
@@ -289,7 +288,7 @@ class MockHttpClient extends Client {
     throw new ClientException(
       message: $message,
       request: new Request('GET', ''),
-      response: new Response($status, [], Utils::jsonEncode(['detail' => $message]))
+      response: new Response($status, [], json_encode(['detail' => $message], JSON_THROW_ON_ERROR))
     );
   }
 
@@ -307,7 +306,7 @@ class MockHttpClient extends Client {
     $mockKey = "$method:$path";
     if (array_key_exists($mockKey, $this->requests)) {
       $method = $this->requests[$mockKey];
-      $body = new ParameterBag(Utils::jsonDecode($options['body'] ?? '{}', TRUE));
+      $body = new ParameterBag(json_decode($options['body'] ?? '{}', TRUE, flags: JSON_THROW_ON_ERROR));
       $headers = new ParameterBag($options['headers'] ?? []);
       return $this->$method($body, $headers);
     }

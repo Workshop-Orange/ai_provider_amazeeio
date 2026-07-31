@@ -6,7 +6,6 @@ use Drupal\ai_provider_amazeeio\DTO\Model;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\Utils;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 
@@ -149,7 +148,7 @@ class AmazeeClient implements ClientInterface {
   public function validateCode(string $email, string $code): ?string {
     try {
       $result = $this->makeRequest('POST', '/auth/sign-in', ['username' => $email, 'verification_code' => $code]);
-      $data = Utils::jsonDecode($result->getBody()->getContents(), TRUE);
+      $data = json_decode($result->getBody()->getContents(), TRUE, flags: JSON_THROW_ON_ERROR);
       return $data['access_token'];
     }
     catch (ClientException | GuzzleException | \Exception $e) {
