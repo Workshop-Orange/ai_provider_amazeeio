@@ -141,6 +141,7 @@ final class TrialAccountProvisioner implements TrialAccountProvisionerInterface 
     $options = [
       'timeout' => 30,
       'headers' => [
+        AmazeeClient::CLIENT_HEADER => AmazeeClient::clientHeaderValue(),
         'Content-Type' => 'application/json',
         'Accept' => 'application/json',
         'Referer' => 'drupal-install',

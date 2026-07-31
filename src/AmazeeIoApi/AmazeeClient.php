@@ -30,6 +30,28 @@ class AmazeeClient implements ClientInterface {
   public const AMAZEE_API_HOST = 'https://api.amazee.ai';
 
   /**
+   * Header identifying this client on every request to amazee.ai.
+   *
+   * @var string
+   */
+  public const CLIENT_HEADER = 'X-Amazee-Client';
+
+  /**
+   * Value of the CLIENT_HEADER sent with every API request.
+   *
+   * @return string
+   *   The module name and version, as "ai_provider_amazeeio/1.3.0".
+   */
+  public static function clientHeaderValue(): string {
+    // ponytail: version only exists in info.yml on packaged releases; 'dev'
+    // covers git checkouts. getAllAvailableInfo() over getExtensionInfo()
+    // because the latter throws when the module isn't installed, and a
+    // tracking header must never be able to kill the request it rides on.
+    $info = \Drupal::service('extension.list.module')->getAllAvailableInfo();
+    return 'ai_provider_amazeeio/' . ($info['ai_provider_amazeeio']['version'] ?? 'dev');
+  }
+
+  /**
    * The auth token to use for requests.
    *
    * @var string
@@ -445,6 +467,7 @@ class AmazeeClient implements ClientInterface {
     // Add any defaults to the headers and body.
     $headers = [
       'Content-Type' => 'application/json',
+      self::CLIENT_HEADER => self::clientHeaderValue(),
     ] + $headers;
 
     if ($this->authToken) {

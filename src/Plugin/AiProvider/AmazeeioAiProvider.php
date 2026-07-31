@@ -3,6 +3,7 @@
 namespace Drupal\ai_provider_amazeeio\Plugin\AiProvider;
 
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient;
+use Drupal\ai_provider_amazeeio\AmazeeIoApi\IdentifiedHttpClient;
 use Drupal\ai\Attribute\AiProvider;
 use Drupal\ai\Base\OpenAiBasedProviderClientBase;
 use Drupal\ai\Enum\AiProviderCapability;
@@ -59,10 +60,15 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
    * {@inheritdoc}
    */
   protected function loadClient(): void {
-    parent::loadClient();
     if ($this->amazeeClient === NULL) {
+      // Keep the raw Guzzle client for AmazeeClient, which stamps the header
+      // itself; the wrapper is only needed for the OpenAI SDK, which builds
+      // its own requests. Wrapping here rather than after parent::loadClient()
+      // so the SDK client is created with it, and only once per plugin.
+      $guzzle = $this->httpClient;
+      $this->setHttpClient(new IdentifiedHttpClient($guzzle));
       $this->amazeeClient = new AmazeeClient(
-        $this->httpClient,
+        $guzzle,
         $this->logger,
         $this->configFactory,
       );
@@ -75,6 +81,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
         throw new AiSetupFailureException('Failed to initialize amazee.ai client: ' . $e->getMessage(), $e->getCode(), $e);
       }
     }
+    parent::loadClient();
   }
 
   /**

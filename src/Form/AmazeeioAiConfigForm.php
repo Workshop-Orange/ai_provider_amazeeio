@@ -164,6 +164,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     try {
       $response = $this->httpClient->get($host . '/health/liveliness', [
         'headers' => [
+          AmazeeClient::CLIENT_HEADER => AmazeeClient::clientHeaderValue(),
           'Authorization' => "Bearer $apiKey",
           'Content-Type' => 'application/json',
         ],
@@ -179,6 +180,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       try {
         $openapiResponse = $this->httpClient->get($host . '/openapi.json', [
           'headers' => [
+            AmazeeClient::CLIENT_HEADER => AmazeeClient::clientHeaderValue(),
             'Authorization' => "Bearer $apiKey",
             'Content-Type' => 'application/json',
           ],
@@ -261,6 +263,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
     try {
       $response = $this->httpClient->get($host . '/key/info', [
         'headers' => [
+          AmazeeClient::CLIENT_HEADER => AmazeeClient::clientHeaderValue(),
           'Authorization' => "Bearer $apiKey",
           'Content-Type' => 'application/json',
         ],
@@ -318,6 +321,7 @@ class AmazeeioAiConfigForm extends ConfigFormBase {
       // description in model_info.metadata.
       $response = $this->httpClient->get($host . '/model/info', [
         'headers' => [
+          AmazeeClient::CLIENT_HEADER => AmazeeClient::clientHeaderValue(),
           'Authorization' => "Bearer $apiKey",
           'Content-Type' => 'application/json',
         ],
