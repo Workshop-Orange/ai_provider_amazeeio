@@ -3,7 +3,6 @@
 namespace Drupal\ai_provider_amazeeio\Plugin\AiProvider;
 
 use Drupal\ai_provider_amazeeio\AmazeeIoApi\AmazeeClient;
-use Drupal\ai_provider_amazeeio\AmazeeIoApi\IdentifiedHttpClient;
 use Drupal\ai\Attribute\AiProvider;
 use Drupal\ai\Base\OpenAiBasedProviderClientBase;
 use Drupal\ai\Enum\AiProviderCapability;
@@ -15,6 +14,7 @@ use Drupal\ai\OperationType\Chat\ChatMessage;
 use Drupal\ai\OperationType\TranslateText\TranslateTextInput;
 use Drupal\ai\OperationType\TranslateText\TranslateTextInterface;
 use Drupal\ai\OperationType\TranslateText\TranslateTextOutput;
+use Drupal\Core\Http\ClientFactory;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
@@ -48,6 +48,11 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements Transl
   protected StateInterface $state;
 
   /**
+   * The HTTP client factory.
+   */
+  protected ClientFactory $httpClientFactory;
+
+  /**
    * The logger.
    */
   protected LoggerInterface $logger;
@@ -59,6 +64,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements Transl
     $plugin = parent::create($container, $configuration, $plugin_id, $plugin_definition);
     $plugin->state = $container->get('state');
     $plugin->logger = $container->get('logger.channel.ai_provider_amazeeio');
+    $plugin->httpClientFactory = $container->get('http_client_factory');
     return $plugin;
   }
 
@@ -68,11 +74,14 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements Transl
   protected function loadClient(): void {
     if ($this->amazeeClient === NULL) {
       // Keep the raw Guzzle client for AmazeeClient, which stamps the header
-      // itself; the wrapper is only needed for the OpenAI SDK, which builds
-      // its own requests. Wrapping here rather than after parent::loadClient()
-      // so the SDK client is created with it, and only once per plugin.
+      // itself. For the OpenAI SDK the header rides as a Guzzle default
+      // option on a real GuzzleHttp\Client: the SDK can only make streamed
+      // requests (forced under BigPipe's Fibers) against an actual Guzzle
+      // client, so a PSR-18 decorator would break streaming (#3586239).
       $guzzle = $this->httpClient;
-      $this->setHttpClient(new IdentifiedHttpClient($guzzle));
+      $this->setHttpClient($this->httpClientFactory->fromOptions([
+        'headers' => [AmazeeClient::CLIENT_HEADER => AmazeeClient::clientHeaderValue()],
+      ]));
       $this->amazeeClient = new AmazeeClient(
         $guzzle,
         $this->logger,
