@@ -8,7 +8,13 @@ use Drupal\ai\Attribute\AiProvider;
 use Drupal\ai\Base\OpenAiBasedProviderClientBase;
 use Drupal\ai\Enum\AiProviderCapability;
 use Drupal\ai\Exception\AiQuotaException;
+use Drupal\ai\Exception\AiRateLimitException;
 use Drupal\ai\Exception\AiSetupFailureException;
+use Drupal\ai\OperationType\Chat\ChatInput;
+use Drupal\ai\OperationType\Chat\ChatMessage;
+use Drupal\ai\OperationType\TranslateText\TranslateTextInput;
+use Drupal\ai\OperationType\TranslateText\TranslateTextInterface;
+use Drupal\ai\OperationType\TranslateText\TranslateTextOutput;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
@@ -22,7 +28,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   id: 'amazeeio',
   label: new TranslatableMarkup('amazee.ai AI'),
 )]
-class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
+class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements TranslateTextInterface {
 
   /**
    * Default provider ID.
@@ -172,6 +178,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
           break;
 
         case 'chat':
+        case 'translate_text':
           if ($model->supportsChat) {
             $models[$model->name] = $model->name;
           }
@@ -243,6 +250,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
       'chat_with_structured_response',
       'chat_with_tools',
       'embeddings',
+      'translate_text',
     ];
   }
 
@@ -268,6 +276,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
       $setup['default_models']['chat_with_tools'] = 'chat';
       $setup['default_models']['chat_with_structured_response'] = 'chat';
       $setup['default_models']['chat_with_complex_json'] = 'chat';
+      $setup['default_models']['translate_text'] = 'chat';
 
       if ($models['chat']->supportsVision) {
         $setup['default_models']['chat_with_image_vision'] = 'chat';
@@ -296,7 +305,44 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
       throw new AiQuotaException($message . ' ' . $e->getMessage());
     }
 
+    if (str_contains($e->getMessage(), 'Request rate limit has been exceeded')) {
+      throw new AiRateLimitException($e->getMessage());
+    }
+
+    // Delegate to the base handler so its rate limit and quota detection
+    // ("Too Many Requests", "Request too large", ...) still applies.
+    if ($e instanceof \Exception) {
+      parent::handleApiException($e);
+    }
+
     throw $e;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function translateText(TranslateTextInput $input, string $model_id, array $options = []): TranslateTextOutput {
+    $source_language = $input->getSourceLanguage() ?: 'source language';
+    $target_language = $input->getTargetLanguage();
+    $prompt = sprintf(
+      'Translate the following text from %s to %s. Return only the translated text without any extra commentary. Text: %s',
+      $source_language,
+      $target_language,
+      $input->getText()
+    );
+
+    $messages = new ChatInput([
+      new ChatMessage('user', $prompt),
+    ]);
+    $messages->setSystemPrompt('You are a helpful translator.');
+
+    $chat_output = $this->chat($messages, $model_id, $options);
+
+    return new TranslateTextOutput(
+      $chat_output->getNormalized()->getText(),
+      $chat_output->getRawOutput(),
+      [],
+    );
   }
 
 }
