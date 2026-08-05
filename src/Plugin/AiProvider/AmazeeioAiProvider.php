@@ -259,6 +259,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements Transl
       'chat_with_structured_response',
       'chat_with_tools',
       'embeddings',
+      'text_to_image',
       'translate_text',
     ];
   }
@@ -294,6 +295,13 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements Transl
 
     if (isset($models['embeddings']) && $models['embeddings']->supportsEmbeddings) {
       $setup['default_models']['embeddings'] = 'embeddings';
+    }
+
+    foreach ($models as $model) {
+      if ($model->supportsImageGeneration) {
+        $setup['default_models']['text_to_image'] = $model->name;
+        break;
+      }
     }
 
     return $setup;
