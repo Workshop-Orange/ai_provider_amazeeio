@@ -21,7 +21,6 @@ use Drupal\key\KeyRepositoryInterface;
 use Drupal\search_api\IndexInterface;
 use Drupal\search_api\Query\ConditionGroupInterface;
 use Drupal\search_api\Query\QueryInterface;
-use PgSql\Connection;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -90,13 +89,13 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
    *
    * This connection is used interface with the Postgres client.
    *
-   * @return \PgSql\Connection|false
+   * @return \PDO|false
    *   A connection to the Postgres instance.
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
-  public function getConnection(string $database = 'default'): Connection|false {
+  public function getConnection(string $database = 'default'): \PDO|false {
     $config = $this->getConnectionData();
     return $this->getClient()->getConnection(
       host: $config['postgres_host'],
@@ -475,7 +474,7 @@ class PostgresProvider extends AiVdbProviderClientBase implements ContainerFacto
     }
 
     $connection = $this->getConnection($query->getIndex()->getServerInstance()->getBackendConfig()['database_settings']['database_name']);
-    $escaped_index_id = pg_escape_literal($connection, $query->getIndex()->id());
+    $escaped_index_id = $connection->quote($query->getIndex()->id());
     $filters[] = 'index_id = ' . $escaped_index_id;
     return implode(' ', $joins) . ' WHERE ' . implode(' AND ', $filters);
   }

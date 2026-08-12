@@ -18,8 +18,6 @@ include:
       - '/includes/include.drupalci.workflows.yml'
 
 variables:
-  # Workaround until we can get ext-pgsql in the container.
-  COMPOSER_IGNORE_PLATFORM_REQ: 'ext-pgsql'
   _ALL_VALIDATE_ALLOW_FAILURE: 0
   _CSPELL_IGNORE_PATHS: "'.cspell-project-words.txt'"
 

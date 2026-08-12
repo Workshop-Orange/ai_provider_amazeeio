@@ -8,7 +8,6 @@ use Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider\PostgresProvider
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient;
 use Drupal\search_api\IndexInterface;
 use Drupal\Tests\UnitTestCase;
-use PgSql\Connection;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
@@ -140,7 +139,7 @@ final class DeleteTestPostgresProvider extends PostgresProvider {
   /**
    * {@inheritdoc}
    */
-  public function getConnection(string $database = 'default'): Connection|false {
+  public function getConnection(string $database = 'default'): \PDO|false {
     // The fake client never uses the connection.
     return FALSE;
   }
@@ -151,7 +150,7 @@ final class DeleteTestPostgresProvider extends PostgresProvider {
  * Recording fake for PostgresPgvectorClient.
  *
  * A hand-written fake instead of a PHPUnit mock because the real methods
- * type-hint \PgSql\Connection, which cannot be instantiated or mocked; the
+ * type-hint \PDO, which requires a live connection to instantiate; the
  * overrides widen the parameter so the provider can pass FALSE.
  */
 final class DeleteTestPgvectorClient extends PostgresPgvectorClient {

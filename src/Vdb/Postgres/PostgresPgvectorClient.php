@@ -22,7 +22,6 @@ use Drupal\Core\Field\TypedData\FieldItemDataDefinitionInterface;
 use Drupal\search_api\Item\FieldInterface;
 use Drupal\search_api\Utility\FieldsHelperInterface;
 use Drupal\search_api\Utility\Utility;
-use PgSql\Connection;
 
 /**
  * Provides abstracted Postgres client to interface with pgvector.
@@ -61,7 +60,7 @@ class PostgresPgvectorClient {
   /**
    * Get the Postgres database connection.
    *
-   * @return \PgSql\Connection|false
+   * @return \PDO|false
    *   A connection to the Postgres database.
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
@@ -73,31 +72,34 @@ class PostgresPgvectorClient {
     string $password,
     string $default_database,
     ?string $database = NULL,
-  ): Connection|FALSE {
-    if (!function_exists('pg_connect')) {
-      throw new DatabaseConnectionException(
-        message: 'The PHP PostgreSQL extension (ext-pgsql) is not found.',
-      );
-    }
+  ): \PDO|FALSE {
     if (!isset($database) || $database === 'default') {
       $database = $default_database;
     }
-    $connection = pg_connect(
-      connection_string: "host=" . addcslashes($host, "'\\") . " dbname=" . addcslashes($database, "'\\") . " port=" . (int) $port . " user=" . addcslashes($username, "'\\") . " password=" . addcslashes($password, "'\\")
-    );
-    if (!$connection) {
+    $dsn = "pgsql:host={$host};dbname={$database};port={$port}";
+    try {
+      return new \PDO($dsn, $username, $password, [
+        \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+        \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+      ]);
+    }
+    catch (\PDOException $e) {
       throw new DatabaseConnectionException(
-        message: 'Cannot connect to Postgres database using provided connection details',
+        message: 'Cannot connect to Postgres database using provided connection details: ' . $e->getMessage(),
       );
     }
-    return $connection;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function ping(Connection $connection): bool {
-    return pg_ping(connection: $connection);
+  public function ping(\PDO $connection): bool {
+    try {
+      return (bool) $connection->query('SELECT 1')->fetchColumn();
+    }
+    catch (\PDOException) {
+      return FALSE;
+    }
   }
 
   /**
@@ -105,16 +107,15 @@ class PostgresPgvectorClient {
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\GetCollectionsException
    */
-  public function getCollections(Connection $connection): array {
-    $result = pg_query_params(
-      connection: $connection,
-      query: 'SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = $1',
-      params: ['BASE TABLE'],
-    );
-    if (!$result) {
-      throw new GetCollectionsException(message: pg_last_error(connection: $connection));
+  public function getCollections(\PDO $connection): array {
+    try {
+      $statement = $connection->prepare('SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = ?');
+      $statement->execute(['BASE TABLE']);
+      return $statement->fetchAll(\PDO::FETCH_COLUMN);
     }
-    return pg_fetch_all_columns($result);
+    catch (\PDOException $e) {
+      throw new GetCollectionsException(message: $e->getMessage());
+    }
   }
 
   /**
@@ -125,18 +126,17 @@ class PostgresPgvectorClient {
   public function createCollection(
     string $collection_name,
     int $dimension,
-    Connection $connection,
+    \PDO $connection,
   ): void {
     $escaped_collection_name = $this->escapeIdentifierForSql(
       identifier_to_escape: $collection_name,
       connection: $connection,
     );
-    $result = pg_query(
-      connection: $connection,
-      query: "CREATE TABLE {$escaped_collection_name} (id bigserial PRIMARY KEY, content VARCHAR, drupal_entity_id VARCHAR, drupal_long_id VARCHAR, server_id VARCHAR, index_id VARCHAR, embedding vector(" . (int) $dimension . "));"
-    );
-    if (!$result) {
-      throw new CreateCollectionException(message: pg_last_error(connection: $connection));
+    try {
+      $connection->exec("CREATE TABLE {$escaped_collection_name} (id bigserial PRIMARY KEY, content VARCHAR, drupal_entity_id VARCHAR, drupal_long_id VARCHAR, server_id VARCHAR, index_id VARCHAR, embedding vector(" . (int) $dimension . "));");
+    }
+    catch (\PDOException $e) {
+      throw new CreateCollectionException(message: $e->getMessage());
     }
     // Attempt to update the additional fields from the search api indexes.
     foreach ($this->getSearchApiServers($collection_name, $connection) as $search_api_server) {
@@ -152,22 +152,18 @@ class PostgresPgvectorClient {
    *
    * @param string $collection_name
    *   The collection name of the connection.
-   * @param \PgSql\Connection $connection
+   * @param \PDO $connection
    *   The current connection.
    *
    * @return \Drupal\search_api\Entity\Server[]
    *   The Search API servers.
    */
-  protected function getSearchApiServers(string $collection_name, Connection $connection): array {
+  protected function getSearchApiServers(string $collection_name, \PDO $connection): array {
     if (!$this->entityTypeManager->hasDefinition('search_api_server')) {
       return [];
     }
 
-    $result = pg_query(
-      $connection,
-      'SELECT current_database()'
-    );
-    $current_database = pg_fetch_result($result, 0, 0);
+    $current_database = $connection->query('SELECT current_database()')->fetchColumn();
 
     $search_api_server_storage = $this->entityTypeManager->getStorage('search_api_server');
     $query = $search_api_server_storage->getQuery();
@@ -190,18 +186,17 @@ class PostgresPgvectorClient {
    */
   public function dropCollection(
     string $collection_name,
-    Connection $connection,
+    \PDO $connection,
   ): void {
     $escaped_collection_name = $this->escapeIdentifierForSql(
       identifier_to_escape: $collection_name,
       connection: $connection,
     );
-    $result = pg_query(
-      connection: $connection,
-      query: "DROP TABLE IF EXISTS {$escaped_collection_name} CASCADE;"
-    );
-    if (!$result) {
-      throw new DropCollectionException(message: pg_last_error(connection: $connection));
+    try {
+      $connection->exec("DROP TABLE IF EXISTS {$escaped_collection_name} CASCADE;");
+    }
+    catch (\PDOException $e) {
+      throw new DropCollectionException(message: $e->getMessage());
     }
 
     $relation_tables = $this->getRelationTables($collection_name, $connection);
@@ -210,12 +205,11 @@ class PostgresPgvectorClient {
         $relation_table,
         $connection,
       );
-      $result = pg_query(
-        $connection,
-        "DROP TABLE IF EXISTS {$escaped_relation_table} CASCADE;"
-      );
-      if (!$result) {
-        throw new DropCollectionException(message: pg_last_error(connection: $connection));
+      try {
+        $connection->exec("DROP TABLE IF EXISTS {$escaped_relation_table} CASCADE;");
+      }
+      catch (\PDOException $e) {
+        throw new DropCollectionException(message: $e->getMessage());
       }
     }
   }
@@ -235,7 +229,7 @@ class PostgresPgvectorClient {
     array $server_id,
     array $index_id,
     array $extra_fields,
-    Connection $connection,
+    \PDO $connection,
   ): void {
     $vector_string = $this->prepareVectorArrayForSql(
       vector: $vector['value'],
@@ -252,7 +246,6 @@ class PostgresPgvectorClient {
 
     $relation_queries = [];
 
-    $param_index = 6;
     foreach ($extra_fields as $field_name => $field_data) {
       if ($field_data['is_multiple']) {
         if ($relation_query = $this->prepareRelationQuery($collection_name, $field_name, $field_data, $connection)) {
@@ -262,12 +255,11 @@ class PostgresPgvectorClient {
       else {
         $escaped_field_name = $this->escapeIdentifierForSql($field_name, $connection);
         $extra_fields_columns .= ", {$escaped_field_name}";
-        $extra_fields_values .= ", \${$param_index}";
+        $extra_fields_values .= ', ?';
         $extra_fields_params[] = $field_data['value'];
-        $param_index++;
       }
     }
-    $main_query = "INSERT INTO {$escaped_collection_name} (content, drupal_entity_id, drupal_long_id, server_id, index_id, embedding{$extra_fields_columns}) VALUES ($1, $2, $3, $4, $5, {$vector_string}{$extra_fields_values});";
+    $main_query = "INSERT INTO {$escaped_collection_name} (content, drupal_entity_id, drupal_long_id, server_id, index_id, embedding{$extra_fields_columns}) VALUES (?, ?, ?, ?, ?, ?::vector{$extra_fields_values});";
 
     $params = array_merge([
       $content['value'],
@@ -275,23 +267,23 @@ class PostgresPgvectorClient {
       $drupal_long_id['value'],
       $server_id['value'],
       $index_id['value'],
+      $vector_string,
     ], $extra_fields_params);
 
-    $result = pg_query_params(
-      connection: $connection,
-      query: $main_query,
-      params: $params,
-    );
-    if (!$result) {
-      throw new InsertIntoCollectionException(message: pg_last_error(connection: $connection));
+    try {
+      $statement = $connection->prepare($main_query);
+      $statement->execute($params);
+    }
+    catch (\PDOException $e) {
+      throw new InsertIntoCollectionException(message: $e->getMessage());
     }
     foreach ($relation_queries as $relation_query) {
-      $result = pg_query(
-        connection: $connection,
-        query: $relation_query
-      );
-      if (!$result) {
-        throw new InsertIntoCollectionException(message: pg_last_error(connection: $connection));
+      try {
+        $statement = $connection->prepare($relation_query['query']);
+        $statement->execute($relation_query['params']);
+      }
+      catch (\PDOException $e) {
+        throw new InsertIntoCollectionException(message: $e->getMessage());
       }
     }
   }
@@ -312,7 +304,7 @@ class PostgresPgvectorClient {
    *   The name of the collection (parent table).
    * @param array $ids
    *   VDB row IDs from the collection's `id` column. NOT Drupal entity IDs.
-   * @param \PgSql\Connection $connection
+   * @param \PDO $connection
    *   The Postgres connection.
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DeleteFromCollectionException
@@ -325,7 +317,7 @@ class PostgresPgvectorClient {
   public function deleteFromCollection(
     string $collection_name,
     array $ids,
-    Connection $connection,
+    \PDO $connection,
   ): void {
     if (empty($ids)) {
       return;
@@ -334,13 +326,13 @@ class PostgresPgvectorClient {
       identifier_to_escape: $collection_name,
       connection: $connection,
     );
-    $prepared_ids = $this->prepareStringArrayForSql(items: $ids, connection: $connection);
-    $result = pg_query(
-      connection: $connection,
-      query: "DELETE FROM {$escaped_collection_name} WHERE id IN {$prepared_ids}"
-    );
-    if (!$result) {
-      throw new DeleteFromCollectionException(message: pg_last_error(connection: $connection));
+    $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+    try {
+      $statement = $connection->prepare("DELETE FROM {$escaped_collection_name} WHERE id IN ({$placeholders})");
+      $statement->execute(array_values($ids));
+    }
+    catch (\PDOException $e) {
+      throw new DeleteFromCollectionException(message: $e->getMessage());
     }
 
     $relation_tables = $this->getRelationTables($collection_name, $connection);
@@ -349,12 +341,12 @@ class PostgresPgvectorClient {
         $relation_table,
         $connection,
       );
-      $result = pg_query(
-        $connection,
-        "DELETE FROM {$escaped_relation_table} WHERE chunk_id IN {$prepared_ids};"
-      );
-      if (!$result) {
-        throw new DeleteFromCollectionException(message: pg_last_error(connection: $connection));
+      try {
+        $statement = $connection->prepare("DELETE FROM {$escaped_relation_table} WHERE chunk_id IN ({$placeholders});");
+        $statement->execute(array_values($ids));
+      }
+      catch (\PDOException $e) {
+        throw new DeleteFromCollectionException(message: $e->getMessage());
       }
     }
   }
@@ -366,7 +358,7 @@ class PostgresPgvectorClient {
    *   The collection name.
    * @param string $index_id
    *   The Search API index ID.
-   * @param \PgSql\Connection $connection
+   * @param \PDO $connection
    *   The Postgres connection.
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DeleteFromCollectionException
@@ -375,19 +367,18 @@ class PostgresPgvectorClient {
   public function deleteByIndexId(
     string $collection_name,
     string $index_id,
-    Connection $connection,
+    \PDO $connection,
   ): void {
     $escaped_collection_name = $this->escapeIdentifierForSql(
       identifier_to_escape: $collection_name,
       connection: $connection,
     );
-    $result = pg_query_params(
-      connection: $connection,
-      query: "DELETE FROM {$escaped_collection_name} WHERE index_id = $1;",
-      params: [$index_id],
-    );
-    if (!$result) {
-      throw new DeleteFromCollectionException(message: pg_last_error(connection: $connection));
+    try {
+      $statement = $connection->prepare("DELETE FROM {$escaped_collection_name} WHERE index_id = ?;");
+      $statement->execute([$index_id]);
+    }
+    catch (\PDOException $e) {
+      throw new DeleteFromCollectionException(message: $e->getMessage());
     }
   }
 
@@ -399,7 +390,7 @@ class PostgresPgvectorClient {
    *
    * @param string $collection_name
    *   The collection name.
-   * @param \PgSql\Connection $connection
+   * @param \PDO $connection
    *   The database connection object.
    *
    * @return array
@@ -409,17 +400,16 @@ class PostgresPgvectorClient {
    *
    * @see \Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient::getRelationTableName()
    */
-  protected function getRelationTables(string $collection_name, Connection $connection): array {
+  protected function getRelationTables(string $collection_name, \PDO $connection): array {
     $like_safe_name = str_replace(['%', '_'], ['\%', '\_'], $collection_name);
-    $result = pg_query_params(
-      $connection,
-      'SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = $1 AND table_name LIKE $2',
-      ['BASE TABLE', "{$like_safe_name}\\_\\_%"],
-    );
-    if (!$result) {
-      throw new GetCollectionsException(message: pg_last_error(connection: $connection));
+    try {
+      $statement = $connection->prepare('SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = ? AND table_name LIKE ?');
+      $statement->execute(['BASE TABLE', "{$like_safe_name}\\_\\_%"]);
+      return $statement->fetchAll(\PDO::FETCH_COLUMN);
     }
-    return pg_fetch_all_columns($result);
+    catch (\PDOException $e) {
+      throw new GetCollectionsException(message: $e->getMessage());
+    }
   }
 
   /**
@@ -434,7 +424,7 @@ class PostgresPgvectorClient {
     string $filters,
     int $limit,
     int $offset,
-    Connection $connection,
+    \PDO $connection,
   ): array {
     $escaped_collection_name = $this->escapeIdentifierForSql(
       identifier_to_escape: $collection_name,
@@ -449,11 +439,12 @@ class PostgresPgvectorClient {
     else {
       $query = "SELECT {$prepared_output_fields} FROM {$escaped_collection_name} {$filters} LIMIT {$limit} OFFSET {$offset};";
     }
-    $result = pg_query(connection: $connection, query: $query);
-    if (!$result) {
-      throw new QuerySearchException(message: pg_last_error(connection: $connection));
+    try {
+      return $connection->query($query)->fetchAll();
     }
-    return pg_fetch_all(result: $result);
+    catch (\PDOException $e) {
+      throw new QuerySearchException(message: $e->getMessage());
+    }
   }
 
   /**
@@ -470,7 +461,7 @@ class PostgresPgvectorClient {
     int $limit,
     int $offset,
     VdbSimilarityMetrics $metric_type,
-    Connection $connection,
+    \PDO $connection,
   ): array {
     $metric_name = match ($metric_type) {
       VdbSimilarityMetrics::EuclideanDistance => '<->',
@@ -495,25 +486,28 @@ class PostgresPgvectorClient {
     if (empty($filters)) {
       // CosineSimilarity requires a special query.
       if ($metric_type === VdbSimilarityMetrics::CosineSimilarity) {
-        $query = "SELECT (1-{$alias}.real_distance) as distance, {$outfield_fields} FROM (SELECT embedding {$metric_name} {$vectors} as real_distance, {$prepared_output_fields} FROM {$escaped_collection_name}) as {$alias} ORDER BY distance DESC LIMIT {$limit} OFFSET {$offset};";
+        $query = "SELECT (1-{$alias}.real_distance) as distance, {$outfield_fields} FROM (SELECT embedding {$metric_name} ?::vector as real_distance, {$prepared_output_fields} FROM {$escaped_collection_name}) as {$alias} ORDER BY distance DESC LIMIT {$limit} OFFSET {$offset};";
       }
       else {
-        $query = "SELECT embedding {$metric_name} {$vectors} as distance, {$prepared_output_fields} FROM {$escaped_collection_name} ORDER BY distance LIMIT {$limit} OFFSET {$offset};";
+        $query = "SELECT embedding {$metric_name} ?::vector as distance, {$prepared_output_fields} FROM {$escaped_collection_name} ORDER BY distance LIMIT {$limit} OFFSET {$offset};";
       }
     }
     else {
       if ($metric_type === VdbSimilarityMetrics::CosineSimilarity) {
-        $query = "SELECT (1-{$alias}.real_distance) as distance, {$outfield_fields} FROM (SELECT embedding {$metric_name} {$vectors} as real_distance, {$prepared_output_fields} FROM {$escaped_collection_name} {$filters}) as {$alias} ORDER BY distance DESC LIMIT {$limit} OFFSET {$offset};";
+        $query = "SELECT (1-{$alias}.real_distance) as distance, {$outfield_fields} FROM (SELECT embedding {$metric_name} ?::vector as real_distance, {$prepared_output_fields} FROM {$escaped_collection_name} {$filters}) as {$alias} ORDER BY distance DESC LIMIT {$limit} OFFSET {$offset};";
       }
       else {
-        $query = "SELECT embedding {$metric_name} {$vectors} as distance, {$prepared_output_fields} FROM {$escaped_collection_name} {$filters} ORDER BY distance LIMIT {$limit} OFFSET {$offset};";
+        $query = "SELECT embedding {$metric_name} ?::vector as distance, {$prepared_output_fields} FROM {$escaped_collection_name} {$filters} ORDER BY distance LIMIT {$limit} OFFSET {$offset};";
       }
     }
-    $result = pg_query(connection: $connection, query: $query);
-    if (!$result) {
-      throw new VectorSearchException(message: pg_last_error(connection: $connection));
+    try {
+      $statement = $connection->prepare($query);
+      $statement->execute([$vectors]);
+      return $statement->fetchAll();
     }
-    return pg_fetch_all(result: $result);
+    catch (\PDOException $e) {
+      throw new VectorSearchException(message: $e->getMessage());
+    }
   }
 
   /**
@@ -521,7 +515,7 @@ class PostgresPgvectorClient {
    *
    * @param array $fields
    *   Field array.
-   * @param \PgSql\Connection $connection
+   * @param \PDO $connection
    *   The Postgres connection.
    * @param string $collection_name
    *   The name of the collection.
@@ -532,7 +526,7 @@ class PostgresPgvectorClient {
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
    */
-  public function prepareFieldArrayForSql(array $fields, Connection $connection, $collection_name = NULL): string {
+  public function prepareFieldArrayForSql(array $fields, \PDO $connection, $collection_name = NULL): string {
     if (empty($fields)) {
       return '';
     }
@@ -559,7 +553,7 @@ class PostgresPgvectorClient {
    * @param array $vector
    *   Vector array.
    *   Normally an array of floats.
-   * @param \PgSql\Connection $connection
+   * @param \PDO $connection
    *   The Postgres connection.
    *
    * @return string
@@ -568,9 +562,8 @@ class PostgresPgvectorClient {
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
    */
-  public function prepareVectorArrayForSql(array $vector, Connection $connection): string {
-    $array_formatted_as_string = '[' . implode(separator: ',', array: $vector) . ']';
-    return $this->escapeStringForSql(string_to_escape: $array_formatted_as_string, connection: $connection);
+  public function prepareVectorArrayForSql(array $vector, \PDO $connection): string {
+    return '[' . implode(separator: ',', array: $vector) . ']';
   }
 
   /**
@@ -592,7 +585,7 @@ class PostgresPgvectorClient {
    *
    * @param array $items
    *   An array of string items.
-   * @param \PgSql\Connection $connection
+   * @param \PDO $connection
    *   The Postgres connection.
    *
    * @return string
@@ -601,7 +594,7 @@ class PostgresPgvectorClient {
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
    */
-  public function prepareStringArrayForSql(array $items, Connection $connection): string {
+  public function prepareStringArrayForSql(array $items, \PDO $connection): string {
     $escaped_strings = [];
     foreach ($items as $item) {
       $escaped_strings[] = $this->escapeStringForSql(string_to_escape: $item, connection: $connection);
@@ -614,7 +607,7 @@ class PostgresPgvectorClient {
    *
    * @param string $string_to_escape
    *   The string to escape.
-   * @param \PgSql\Connection $connection
+   * @param \PDO $connection
    *   The Postgres connection.
    *
    * @return string
@@ -622,10 +615,10 @@ class PostgresPgvectorClient {
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
    */
-  private function escapeStringForSql(string $string_to_escape, Connection $connection): string {
-    $result = pg_escape_literal(connection: $connection, string: $string_to_escape);
-    if (!$result) {
-      throw new EscapeStringException(message: pg_last_error(connection: $connection));
+  private function escapeStringForSql(string $string_to_escape, \PDO $connection): string {
+    $result = $connection->quote($string_to_escape);
+    if ($result === FALSE) {
+      throw new EscapeStringException(message: 'Could not quote string literal.');
     }
     return $result;
   }
@@ -635,7 +628,7 @@ class PostgresPgvectorClient {
    *
    * @param string $identifier_to_escape
    *   The string identifier to escape.
-   * @param \PgSql\Connection $connection
+   * @param \PDO $connection
    *   The Postgres connection.
    *
    * @return string
@@ -643,12 +636,8 @@ class PostgresPgvectorClient {
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
    */
-  public function escapeIdentifierForSql(string $identifier_to_escape, Connection $connection): string {
-    $result = pg_escape_identifier(connection: $connection, string: $identifier_to_escape);
-    if (!$result) {
-      throw new EscapeStringException(message: pg_last_error(connection: $connection));
-    }
-    return $result;
+  public function escapeIdentifierForSql(string $identifier_to_escape, \PDO $connection): string {
+    return '"' . str_replace('"', '""', $identifier_to_escape) . '"';
   }
 
   /**
@@ -685,7 +674,7 @@ class PostgresPgvectorClient {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\AddFieldIfNotExistsException
    */
-  public function updateFields($fields, string $collection_name, Connection $connection): void {
+  public function updateFields($fields, string $collection_name, \PDO $connection): void {
     /** @var \Drupal\search_api\Item\FieldInterface $field */
     foreach ($fields as $field) {
       if (!$this->shouldHaveColumn($field)) {
@@ -743,7 +732,7 @@ class PostgresPgvectorClient {
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\EscapeStringException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\AddFieldIfNotExistsException
    */
-  protected function addFieldIfNotExists(bool $isMultiple, string $data_type, string $name, string $collection_name, Connection $connection): void {
+  protected function addFieldIfNotExists(bool $isMultiple, string $data_type, string $name, string $collection_name, \PDO $connection): void {
     $escaped_collection_name = $this->escapeIdentifierForSql(
       identifier_to_escape: $collection_name,
       connection: $connection,
@@ -755,16 +744,20 @@ class PostgresPgvectorClient {
     if ($isMultiple) {
       $relation_table = $this->getRelationTableName($collection_name, $name, $connection);
       $create_relation_table = "CREATE TABLE IF NOT EXISTS {$relation_table} (id SERIAL PRIMARY KEY, value {$postgres_type} NOT NULL, chunk_id INT NOT NULL, FOREIGN KEY(chunk_id) REFERENCES {$escaped_collection_name}(id) ON DELETE CASCADE);";
-      $result = pg_query(connection: $connection, query: $create_relation_table);
-      if (!$result) {
-        throw new AddFieldIfNotExistsException(message: pg_last_error(connection: $connection));
+      try {
+        $connection->exec($create_relation_table);
+      }
+      catch (\PDOException $e) {
+        throw new AddFieldIfNotExistsException(message: $e->getMessage());
       }
     }
     else {
       $query = "ALTER TABLE {$escaped_collection_name} ADD COLUMN IF NOT EXISTS {$escaped_field_name} {$postgres_type};";
-      $result = pg_query(connection: $connection, query: $query);
-      if (!$result) {
-        throw new AddFieldIfNotExistsException(message: pg_last_error(connection: $connection));
+      try {
+        $connection->exec($query);
+      }
+      catch (\PDOException $e) {
+        throw new AddFieldIfNotExistsException(message: $e->getMessage());
       }
     }
   }
@@ -772,16 +765,12 @@ class PostgresPgvectorClient {
   /**
    * {@inheritdoc}
    */
-  protected function prepareRelationQuery($collection_name, $field_name, $field_data, $connection) {
-    $query = '';
-    $escaped_collection_name_id_sequence = pg_escape_literal(
-      $connection,
-      "{$collection_name}_id_seq",
-    );
+  protected function prepareRelationQuery($collection_name, $field_name, $field_data, $connection): ?array {
     // Prepare entries for relation table.
     $escaped_relation_table_name = $this->getRelationTableName($collection_name, $field_name, $connection);
 
-    $field_values_to_insert = [];
+    $value_sets = [];
+    $params = [];
     if (!is_array($field_data['value'])) {
       $field_data['value'] = [$field_data['value']];
     }
@@ -789,15 +778,18 @@ class PostgresPgvectorClient {
       if (empty($value)) {
         continue;
       }
-      $escaped_field_value = $this->escapeStringForSql(string_to_escape: (string) $value, connection: $connection);
-      $field_values_to_insert[] = "({$escaped_field_value}, currval({$escaped_collection_name_id_sequence}))";
+      $value_sets[] = "(?, currval(pg_get_serial_sequence(?, 'id')))";
+      $params[] = (string) $value;
+      $params[] = $collection_name;
     }
 
-    if (!empty($field_values_to_insert)) {
-      $query = "INSERT INTO {$escaped_relation_table_name} (value, chunk_id) values " . implode(', ', $field_values_to_insert) . ';';
+    if (empty($value_sets)) {
+      return NULL;
     }
-
-    return $query;
+    return [
+      'query' => "INSERT INTO {$escaped_relation_table_name} (value, chunk_id) values " . implode(', ', $value_sets) . ';',
+      'params' => $params,
+    ];
   }
 
   /**

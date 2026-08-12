@@ -9,7 +9,6 @@ use Drupal\ai\Attribute\AiVdbProvider;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\Plugin\VdbProvider\PostgresProvider;
 use Drupal\ai_provider_amazeeio\Vdb\Postgres\PostgresPgvectorClient;
-use PgSql\Connection as PgSql;
 
 /**
  * Plugin implementation of the 'amazee.ai Vector Database' provider.
@@ -33,14 +32,14 @@ class AmazeeioVdbProvider extends PostgresProvider {
    *
    * This connection is used interface with the Postgres client.
    *
-   * @return \PgSql\Connection|false
+   * @return \PDO|false
    *   A connection to the Postgres instance.
    *
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseConnectionException
    * @throws \Drupal\ai_provider_amazeeio\Vdb\Postgres\Exception\DatabaseNotConfiguredException
    */
   #[\Override]
-  public function getConnection(string $database = 'default'): PgSql|false {
+  public function getConnection(string $database = 'default'): \PDO|false {
     $config = $this->getConnectionData();
     return $this->getClient()->getConnection(
           host: $config['host'],
