@@ -150,6 +150,12 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
           }
           break;
 
+        case 'speech_to_text':
+          if ($model->supportsAudioTranscription) {
+            $models[$model->name] = $model->name;
+          }
+          break;
+
         case 'moderation':
           if ($model->supportsModeration) {
             $models[$model->name] = $model->name;
@@ -175,6 +181,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
           break;
 
         case 'chat_with_structured_response':
+        case 'chat_with_complex_json':
           if ($model->supportsResponseSchema) {
             $models[$model->name] = $model->name;
           }
@@ -216,6 +223,26 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
   /**
    * {@inheritdoc}
    */
+  public function isUsable(?string $operation_type = NULL, array $capabilities = []): bool {
+    if (!parent::isUsable($operation_type, $capabilities)) {
+      return FALSE;
+    }
+    if ($operation_type === NULL) {
+      return TRUE;
+    }
+    // The endpoint decides which models are available, so only claim support
+    // for an operation type when at least one model can actually serve it.
+    try {
+      return (bool) $this->getConfiguredModels($operation_type, $capabilities);
+    }
+    catch (\Exception) {
+      return FALSE;
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function getSupportedOperationTypes(): array {
     return [
       'chat',
@@ -224,6 +251,7 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase {
       'chat_with_structured_response',
       'chat_with_tools',
       'embeddings',
+      'speech_to_text',
     ];
   }
 

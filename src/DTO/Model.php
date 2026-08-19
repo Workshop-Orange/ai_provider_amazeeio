@@ -50,6 +50,8 @@ final class Model {
    *   Whether the model supports chat.
    * @param bool $supportsImageGeneration
    *   Whether the model supports image generation.
+   * @param bool $supportsAudioTranscription
+   *   Whether the model supports speech to text.
    * @param bool $supportsModeration
    *   Whether the model supports moderation.
    * @param string[] $supportedOpenAiParams
@@ -76,6 +78,7 @@ final class Model {
     public bool $supportsEmbeddings,
     public bool $supportsChat,
     public bool $supportsImageGeneration,
+    public bool $supportsAudioTranscription,
     public bool $supportsModeration,
     public array $supportedOpenAiParams,
   ) {
@@ -114,6 +117,7 @@ final class Model {
       supportsEmbeddings: ($model_info->mode ?? NULL) === 'embedding',
       supportsChat: ($model_info->mode ?? NULL) === 'chat',
       supportsImageGeneration: ($model_info->mode ?? NULL) === 'image_generation',
+      supportsAudioTranscription: ($model_info->mode ?? NULL) === 'audio_transcription',
       supportsModeration: $model_info->supports_moderation ?? FALSE,
       supportedOpenAiParams: $model_info->supported_openai_params ?? [],
     );
