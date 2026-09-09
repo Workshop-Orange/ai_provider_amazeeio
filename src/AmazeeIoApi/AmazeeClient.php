@@ -302,7 +302,10 @@ class AmazeeClient implements ClientInterface {
         $response_body = json_decode($response->getBody()->getContents());
         $body['team_id'] = $response_body->team_id;
       }
-      $response = $this->makeRequest('POST', '/private-ai-keys', $body);
+      // Provisioning creates the account, workspace and key in one request
+      // and takes tens of seconds. Never re-send it: a later manual attempt
+      // gets the existing key back from the API.
+      $response = $this->makeRequest('POST', '/private-ai-keys', $body, retry: FALSE, timeout: 60);
     }
     catch (ClientException $e) {
       $this->logger->error('Failed to create private key amazee.ai: @error', ['@error' => $e->getMessage()]);
@@ -452,6 +455,8 @@ class AmazeeClient implements ClientInterface {
    *   Optional additional headers to send.
    * @param bool $retry
    *   Whether to retry on transient (5xx/401) failures. Defaults to TRUE.
+   * @param int $timeout
+   *   Guzzle request timeout in seconds. Defaults to 5.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The response from the API.
@@ -459,7 +464,7 @@ class AmazeeClient implements ClientInterface {
    * @throws \GuzzleHttp\Exception\GuzzleException|\Exception
    *   If the request fails.
    */
-  protected function makeRequest(string $type, string $endpoint, ?array $body = NULL, array $headers = [], bool $retry = TRUE): ResponseInterface {
+  protected function makeRequest(string $type, string $endpoint, ?array $body = NULL, array $headers = [], bool $retry = TRUE, int $timeout = 5): ResponseInterface {
     if (empty($this->host)) {
       throw new \Exception('Missing host');
     }
@@ -481,7 +486,7 @@ class AmazeeClient implements ClientInterface {
     $requestOptions = [
       'headers' => $headers,
       'body' => $encodedBody,
-      'timeout' => 5,
+      'timeout' => $timeout,
     ];
 
     $maxRetries = $retry ? 3 : 0;
