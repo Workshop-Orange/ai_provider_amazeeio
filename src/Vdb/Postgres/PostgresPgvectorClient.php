@@ -567,20 +567,6 @@ class PostgresPgvectorClient {
   }
 
   /**
-   * Transform an array of non-string data to string for use in a SQL statement.
-   *
-   * @param array $items
-   *   An array of string items.
-   *
-   * @return string
-   *   Array formatted as a string for SQL.
-   *   Eg: "('first item', 'second item', 'third item')"
-   */
-  public function prepareArrayForSql(array $items): string {
-    return '(' . implode(separator: ',', array: $items) . ')';
-  }
-
-  /**
    * Transform an array of strings to string for use in a SQL statement.
    *
    * @param array $items
