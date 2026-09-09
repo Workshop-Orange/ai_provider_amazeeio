@@ -253,7 +253,9 @@ class AmazeeClient implements ClientInterface {
         $response_body = json_decode($response->getBody()->getContents());
         $body['team_id'] = $response_body->team_id;
       }
-      $response = $this->makeRequest('POST', '/private-ai-keys', $body);
+      // Provisioning creates the account, workspace and key in one request
+      // and takes tens of seconds, longer than the http_client default.
+      $response = $this->makeRequest('POST', '/private-ai-keys', $body, timeout: 60);
     }
     catch (ClientException | GuzzleException | \Exception $e) {
       $this->logger->error('Failed to create private key amazee.ai: @error', ['@error' => $e->getMessage()]);
@@ -326,6 +328,8 @@ class AmazeeClient implements ClientInterface {
    *   Optional body parameters to send.
    * @param array $headers
    *   Optional additional headers to send.
+   * @param int|null $timeout
+   *   Guzzle request timeout in seconds. NULL keeps the client default.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The response from the API.
@@ -333,7 +337,7 @@ class AmazeeClient implements ClientInterface {
    * @throws \GuzzleHttp\Exception\GuzzleException|\Exception
    *   If the request fails.
    */
-  protected function makeRequest(string $type, string $endpoint, ?array $body = NULL, array $headers = []): ResponseInterface {
+  protected function makeRequest(string $type, string $endpoint, ?array $body = NULL, array $headers = [], ?int $timeout = NULL): ResponseInterface {
     if (empty($this->host)) {
       throw new \Exception('Missing host');
     }
@@ -349,19 +353,17 @@ class AmazeeClient implements ClientInterface {
 
     $body = $body ? json_encode($body) : NULL;
 
+    $options = [
+      'headers' => $headers,
+      'body' => $body,
+    ];
+    if ($timeout !== NULL) {
+      $options['timeout'] = $timeout;
+    }
+
     return match ($type) {
-      'GET' => $this->client->get(
-        $this->host . $endpoint, [
-          'headers' => $headers,
-          'body' => $body,
-        ]
-      ),
-      'POST' => $this->client->post(
-        $this->host . $endpoint, [
-          'headers' => $headers,
-          'body' => $body,
-        ]
-      ),
+      'GET' => $this->client->get($this->host . $endpoint, $options),
+      'POST' => $this->client->post($this->host . $endpoint, $options),
       default => throw new \InvalidArgumentException('Only GET and POST request types are supported.'),
     };
   }
