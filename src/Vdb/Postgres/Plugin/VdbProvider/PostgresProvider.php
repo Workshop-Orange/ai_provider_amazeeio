@@ -452,12 +452,10 @@ class PostgresProvider extends SearchApiAiVdbProviderBase implements ContainerFa
 
       $fieldData = $index->getField($condition->getField());
       if ($fieldData) {
-        $fieldType = $fieldData->getType();
         $isMultiple = FALSE;
       }
       else {
         if (in_array($condition->getField(), self::AI_SEARCH_NATIVE_FIELDS)) {
-          $fieldType = 'string';
           $isMultiple = FALSE;
         }
         else {
@@ -471,12 +469,9 @@ class PostgresProvider extends SearchApiAiVdbProviderBase implements ContainerFa
       }
 
       $values = is_array($condition->getValue()) ? $condition->getValue() : [$condition->getValue()];
-      if (in_array($fieldType, ['string', 'full_text'])) {
-        $normalizedValues = $this->getClient()->prepareStringArrayForSql($values, $connection);
-      }
-      else {
-        $normalizedValues = $this->getClient()->prepareArrayForSql($values);
-      }
+      // Quote every filter value through the DB driver; Postgres casts quoted
+      // literals in numeric comparisons, so this holds for all field types.
+      $normalizedValues = $this->getClient()->prepareStringArrayForSql($values, $connection);
       if ($isMultiple) {
         $fieldIdentifier = $this->getClient()->escapeIdentifierForSql($collection . '__' . $fieldData->getFieldIdentifier(), $connection);
         $escapedCollection = $this->getClient()->escapeIdentifierForSql($collection, $connection);
