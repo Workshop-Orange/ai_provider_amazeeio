@@ -18,6 +18,7 @@ use Drupal\Core\Http\ClientFactory;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
+use OpenAI\Exceptions\RateLimitException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -311,7 +312,9 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements Transl
    * {@inheritdoc}
    */
   public function handleApiException(\Throwable $e): void {
-    if (str_contains($e->getMessage(), 'Budget has been exceeded!')) {
+    $error = $this->apiErrorMessage($e);
+
+    if (str_contains($error, 'Budget has been exceeded!')) {
       $message = 'Your budget has been exceeded!';
 
       if ($this->state->get('ai_provider_amazeeio.trial_account')) {
@@ -319,11 +322,11 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements Transl
         $message = str_replace(':url', $url, 'Your anonymous free trial budget has been exceeded! To continue using amazee.ai, please upgrade to a free account by going to the amazee.ai AI settings at :url and validating your email address.');
       }
 
-      throw new AiQuotaException($message . ' ' . $e->getMessage());
+      throw new AiQuotaException($message . ' ' . $error);
     }
 
-    if (str_contains($e->getMessage(), 'Request rate limit has been exceeded')) {
-      throw new AiRateLimitException($e->getMessage());
+    if (str_contains($error, 'Request rate limit has been exceeded')) {
+      throw new AiRateLimitException($error);
     }
 
     // Delegate to the base handler so its rate limit and quota detection
@@ -333,6 +336,31 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements Transl
     }
 
     throw $e;
+  }
+
+  /**
+   * Returns the error text the API sent, not the client's placeholder.
+   *
+   * The OpenAI PHP client turns every HTTP 429 into a fixed "rate limit"
+   * message and drops the body, so an exhausted budget arrives looking like
+   * throttling. The payload is still on the response, so read it back.
+   *
+   * @param \Throwable $e
+   *   The exception raised by the API client.
+   *
+   * @return string
+   *   The upstream error message, or the exception message as a fallback.
+   */
+  protected function apiErrorMessage(\Throwable $e): string {
+    if (!$e instanceof RateLimitException) {
+      return $e->getMessage();
+    }
+
+    $payload = json_decode((string) $e->response->getBody(), TRUE);
+
+    return is_array($payload) && isset($payload['error']['message']) && is_string($payload['error']['message'])
+      ? $payload['error']['message']
+      : $e->getMessage();
   }
 
   /**
