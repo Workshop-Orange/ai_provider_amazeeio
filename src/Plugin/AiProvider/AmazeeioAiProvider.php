@@ -325,7 +325,9 @@ class AmazeeioAiProvider extends OpenAiBasedProviderClientBase implements Transl
       throw new AiQuotaException($message . ' ' . $error);
     }
 
-    if (str_contains($error, 'Request rate limit has been exceeded')) {
+    // Any other 429 is throttling. Match the client exception itself, because
+    // the upstream text read above no longer carries the client's wording.
+    if ($e instanceof RateLimitException || str_contains($error, 'Request rate limit has been exceeded')) {
       throw new AiRateLimitException($error);
     }
 
