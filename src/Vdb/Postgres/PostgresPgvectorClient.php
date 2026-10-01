@@ -38,11 +38,16 @@ class PostgresPgvectorClient {
    *   The entity type manager.
    * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
    *   The config factory, used to read ai_search indexing options.
+   * @param array<string, scalar> $runtimeParameters
+   *   Postgres run-time parameters (GUCs) to set on every connection, keyed
+   *   by parameter name, e.g. ['random_page_cost' => 1.1]. Comes from the
+   *   ai_provider_amazeeio.postgres.runtime_parameters container parameter.
    */
   public function __construct(
     private readonly ?FieldsHelperInterface $fieldHelper,
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly ConfigFactoryInterface $configFactory,
+    private readonly array $runtimeParameters = [],
   ) {}
 
   protected const DATA_TYPE_MAPPING = [
@@ -76,7 +81,7 @@ class PostgresPgvectorClient {
     if (!isset($database) || $database === 'default') {
       $database = $default_database;
     }
-    $dsn = "pgsql:host={$host};dbname={$database};port={$port}";
+    $dsn = "pgsql:host={$host};dbname={$database};port={$port}{$this->buildOptions()}";
     try {
       return new \PDO($dsn, $username, $password, [
         \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
@@ -88,6 +93,44 @@ class PostgresPgvectorClient {
         message: 'Cannot connect to Postgres database using provided connection details: ' . $e->getMessage(),
       );
     }
+  }
+
+  /**
+   * Builds the libpq "options" keyword for the configured run-time parameters.
+   *
+   * @return string
+   *   An empty string when no run-time parameters are configured, otherwise
+   *   a quoted options keyword to append to the PDO DSN, for example
+   *   ";options='-c random_page_cost=1.1'".
+   *
+   * @throws \InvalidArgumentException
+   *   When a parameter name is not a valid Postgres parameter name, or a value
+   *   contains a semicolon, which pdo_pgsql turns into a space in the DSN.
+   */
+  protected function buildOptions(): string {
+    if ($this->runtimeParameters === []) {
+      return '';
+    }
+    $switches = [];
+    foreach ($this->runtimeParameters as $name => $value) {
+      if (!is_string($name) || !preg_match('/^[a-z_][a-z0-9_.]*$/i', $name)) {
+        throw new \InvalidArgumentException(sprintf('Invalid Postgres run-time parameter name "%s".', $name));
+      }
+      if (is_bool($value)) {
+        $value = $value ? 'on' : 'off';
+      }
+      $value = (string) $value;
+      if (str_contains($value, ';')) {
+        throw new \InvalidArgumentException(sprintf('The value of Postgres run-time parameter "%s" cannot contain a semicolon.', $name));
+      }
+      // Postgres splits the options value on spaces; a backslash escapes the
+      // next character.
+      $value = addcslashes($value, '\\ ');
+      $switches[] = "-c {$name}={$value}";
+    }
+    // Quote the whole value for the libpq connection string.
+    $options = addcslashes(implode(' ', $switches), "\\'");
+    return ";options='{$options}'";
   }
 
   /**

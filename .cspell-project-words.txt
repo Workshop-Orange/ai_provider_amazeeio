@@ -9,8 +9,10 @@ currval
 flac
 fontawesome
 glightbox
+gucs
 hnsw
 inlinehilite
+libpq
 libsodium
 linenums
 litellm
@@ -21,6 +23,7 @@ pgvector
 pygments
 pymdownx
 schemaname
+seqscan
 smartsymbols
 sslmode
 superfences

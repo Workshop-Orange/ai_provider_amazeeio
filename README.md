@@ -30,6 +30,21 @@ For automated / CI setup, use the [amazee.ai AI Provider Recipe](https://www.dru
 
 [amazee.ai](https://amazee.ai) is the private AI platform from [amazee.io](https://amazee.io). Your AI account, keys, teams, and budgets are managed alongside all other amazee.io products at the shared portal: [https://my.amazee.io](https://my.amazee.io).
 
+## Postgres run-time parameters
+
+To set Postgres planner parameters on the vector database connection, for
+example when they can't be changed on the server, override this container
+parameter in your site's `services.yml` and rebuild caches:
+
+```yaml
+parameters:
+  ai_provider_amazeeio.postgres.runtime_parameters:
+    random_page_cost: 1.1
+```
+
+Each entry is sent as `-c name=value` in the libpq `options` connection
+keyword, so it applies to every connection the module opens.
+
 ## Support and Issues
 
 Please use the [Drupal.org issue queue](https://www.drupal.org/project/issues/ai_provider_amazeeio) for support and bug reports.
