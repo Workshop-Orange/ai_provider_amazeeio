@@ -9,6 +9,7 @@ currval
 flac
 fontawesome
 glightbox
+hnsw
 inlinehilite
 libsodium
 linenums
