@@ -482,11 +482,13 @@ class PostgresPgvectorClient {
       array: $output_fields
     );
     $outfield_fields = implode(',', $escaped_outfield_fields);
+    // For cosine, return the similarity (1 - distance), but sort by the raw
+    // distance ascending. pgvector can only use an HNSW or IVFFlat index for
+    // that order.
     $alias = 'subquery';
     if (empty($filters)) {
-      // CosineSimilarity requires a special query.
       if ($metric_type === VdbSimilarityMetrics::CosineSimilarity) {
-        $query = "SELECT (1-{$alias}.real_distance) as distance, {$outfield_fields} FROM (SELECT embedding {$metric_name} ?::vector as real_distance, {$prepared_output_fields} FROM {$escaped_collection_name}) as {$alias} ORDER BY distance DESC LIMIT {$limit} OFFSET {$offset};";
+        $query = "SELECT (1-{$alias}.real_distance) as distance, {$outfield_fields} FROM (SELECT embedding {$metric_name} ?::vector as real_distance, {$prepared_output_fields} FROM {$escaped_collection_name}) as {$alias} ORDER BY {$alias}.real_distance ASC LIMIT {$limit} OFFSET {$offset};";
       }
       else {
         $query = "SELECT embedding {$metric_name} ?::vector as distance, {$prepared_output_fields} FROM {$escaped_collection_name} ORDER BY distance LIMIT {$limit} OFFSET {$offset};";
@@ -494,7 +496,7 @@ class PostgresPgvectorClient {
     }
     else {
       if ($metric_type === VdbSimilarityMetrics::CosineSimilarity) {
-        $query = "SELECT (1-{$alias}.real_distance) as distance, {$outfield_fields} FROM (SELECT embedding {$metric_name} ?::vector as real_distance, {$prepared_output_fields} FROM {$escaped_collection_name} {$filters}) as {$alias} ORDER BY distance DESC LIMIT {$limit} OFFSET {$offset};";
+        $query = "SELECT (1-{$alias}.real_distance) as distance, {$outfield_fields} FROM (SELECT embedding {$metric_name} ?::vector as real_distance, {$prepared_output_fields} FROM {$escaped_collection_name} {$filters}) as {$alias} ORDER BY {$alias}.real_distance ASC LIMIT {$limit} OFFSET {$offset};";
       }
       else {
         $query = "SELECT embedding {$metric_name} ?::vector as distance, {$prepared_output_fields} FROM {$escaped_collection_name} {$filters} ORDER BY distance LIMIT {$limit} OFFSET {$offset};";
